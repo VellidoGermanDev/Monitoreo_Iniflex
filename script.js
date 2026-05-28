@@ -666,7 +666,7 @@ function setupTabs() {
 }
 
 // ==========================================
-// MÓDULO DE AUTO-ACTUALIZACIÓN EN HORA EN PUNTO
+// MÓDULO DE AUTO-ACTUALIZACIÓN INTELIGENTE
 // ==========================================
 
 (function() {
@@ -709,6 +709,7 @@ function setupTabs() {
             if (segundos <= 0) {
                 clearInterval(countdownInterval);
                 
+                // Ejecuta tu función de carga general o recarga la página
                 if (typeof tuFuncionDeCargaGeneral === "function") {
                     tuFuncionDeCargaGeneral(); 
                 } else {
@@ -724,21 +725,48 @@ function setupTabs() {
 
     // RELOJ PRINCIPAL: Corre cada 1 segundo
     setInterval(() => {
+        const relojFlotanteEl = document.getElementById("timer-reloj-cuenta");
+
+        // --- VALIDACIÓN ESTRICTA POR FECHA SELECCIONADA ---
+        const selectorFecha = document.getElementById("production-date");
+        
+        if (selectorFecha) {
+            const fechaSeleccionada = selectorFecha.value; // Formato YYYY-MM-DD
+            
+            // Obtenemos la fecha de HOY en formato local estricto YYYY-MM-DD
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+            const hoyFormateado = `${yyyy}-${mm}-${dd}`;
+
+            // Si el usuario cambió de día para auditar (no es hoy), clavamos el freno de mano
+            if (fechaSeleccionada && fechaSeleccionada !== hoyFormateado) {
+                if (relojFlotanteEl) {
+                    relojFlotanteEl.innerText = "PAUSADO";
+                    relojFlotanteEl.style.color = "#ef4444"; // Rojo industrial de detención
+                }
+                return; // Corta la ejecución de este segundo. Evita el timer y el modal.
+            }
+        }
+
+        // --- SI ES HOY: RESTAURAMOS EL COLOR CIAN ORIGINAL ---
+        if (relojFlotanteEl) {
+            relojFlotanteEl.style.color = "#f8cb38"; 
+        }
+
         const ahora = new Date();
         const minutos = ahora.getMinutes();
         const segundos = ahora.getSeconds();
 
         // --- CÁLCULO DEL MINUTERO DECRECIENTE (Cada 10 min) ---
-        // Calculamos cuántos minutos y segundos faltan para la próxima decena (00, 10, 20, 30, 40, 50)
         let restoMinutos = 9 - (minutos % 10);
         let restoSegundos = 59 - segundos;
 
-        // Formateo con cero a la izquierda si es menor a 10 (ej: 09:05)
         let minFormateado = restoMinutos.toString().padStart(2, '0');
         let segFormateado = restoSegundos.toString().padStart(2, '0');
 
         // Actualizamos el relojito flotante en pantalla
-        const relojFlotanteEl = document.getElementById("timer-reloj-cuenta");
         if (relojFlotanteEl) {
             relojFlotanteEl.innerText = `${minFormateado}:${segFormateado}`;
         }
