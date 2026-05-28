@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo Iniflex - Panel de Producción</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-container">
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text" class="loading-log-container"></div>
+    </div>
+
+    <header class="main-header">
+        <div class="header-logo">
+            <h1>Monitoreo <span>Iniflex</span></h1>
+            <div class="live-container">
+                <span class="badge-live">LIVE</span>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            <div class="date-picker-container">
+                <label for="production-date">Día de Producción:</label>
+                <input type="date" id="production-date" name="production-date">
+            </div>
+            <button id="btn-refresh" class="btn-refresh" title="Actualizar datos">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+
+        <div class="header-datetime">
+            <p id="current-date">Cargando fecha...</p>
+            <p id="time-range">Rango: 06:00:00 hs a 05:59:59 hs</p>
+        </div>
+    </header>   
+
+    <section class="kpi-summary">
+        <div class="kpi-card total-prod">
+            <div class="kpi-icon"><i class="fas fa-boxes-stacked"></i></div>
+            <div class="kpi-info">
+                <h3>Producción Total</h3>
+                <p id="global-prod">0 <span class="unit">kg</span></p>
+            </div>
+        </div>
+        <div class="kpi-card total-scrap">
+            <div class="kpi-icon"><i class="fas fa-trash-arrow-up"></i></div>
+            <div class="kpi-info">
+                <h3>Scrap Total</h3>
+                <p id="global-scrap">0 <span class="unit">kg</span></p>
+            </div>
+        </div>
+
+        <div class="kpi-card global-porc">
+            <div class="kpi-icon"><i class="fas fa-chart-pie"></i></div>
+            <div class="kpi-info">
+                <h3>% Scrap General</h3>
+                <p id="global-scrap-percentage">0.0%</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="main-chart-wrapper">
+        <div class="chart-header">
+            <i class="fas fa-chart-line"></i> Tendencia de Producción General (kg/h)
+        </div>
+        <div class="chart-body">
+            <canvas id="productionChart"></canvas>
+        </div>
+    </div>
+
+    <div id="sector-totals-container" class="sector-totals-grid">
+    </div>
+
+    <nav class="sector-tabs">
+        <button class="tab-btn active" data-sector="all">Todos los Sectores</button>
+        <button class="tab-btn" data-sector="1">Extrusión</button>
+        <button class="tab-btn" data-sector="2">Impresión</button>
+        <button class="tab-btn" data-sector="3">Laminado</button>
+        <button class="tab-btn" data-sector="4">Refile</button>
+        <button class="tab-btn" data-sector="5">Corte</button>
+        <button class="tab-btn" data-sector="6">Corte en Línea</button>
+        <button class="tab-btn" data-sector="7">Recuperado</button>
+    </nav>
+
+    <main class="dashboard-grid" id="machines-container">
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
