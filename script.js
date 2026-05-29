@@ -1,5 +1,5 @@
 // Configuración de la API Iniflex
-const API_URL = "http://10.35.0.109/api/v1/runtime/endpoint/integracao/iniflex/json";
+const API_URL = "http://64.181.190.229/api/v1/runtime/endpoint/integracao/iniflex/json";
 const API_KEY = "-7$-20$111$60$91$-89$81$-72$34$9$39$-20$-22$-64$24$-24$-83$-32$49$-78$67$-84$61$-49$-120$74$14$44$-126$-26$101$63$91$42$33$59$35$-55$22$105$-119$-101$-125$54$-111$124$-77$-99$30$-52$-7$47$-29$-46$-38$85$-8$-84$117$-49$8$-58$-44$7$-42$-45$-112$-66$126$-105$-54$-75$-47$-27$89$-26$63$-33$-48$81$97$-103$116$-38$102$17$37$-101$43$99$85$73$-41$91$18$30$115$57$-128$70$127$9$5$40$44$-51$-46$-112$40$-104$90$-47$-104$121$89$18$-60$23$-85$-118$98$62$-123$-18$9$45$-15$-74$96$-72$-108$61$-42$57$90$-106$114$22$81$-5$38$-10$81$28$-41$52$86$-123$-81$5$28$-4$120$-27$-89$-38$78$-116$72$-20$-6$-121$-116$-9$40$-22$-48$-117$29$-40$-121$-8$-43$61$-124$-43$-32$65$97$-31$89$39$-82$-91$126$105$-97$-59$65$105$-37$53$-55$78$-9$104$123$67$24$-54$44$-36$109$-70$94$112$33$-88$-75$72$10$124$5$10$91$-11$-15$-30$-66$103$105$-115$99$-63$-34$-68$-113$-89$45$113$127$54$-55$-55$113$94$-117$70$-21$-54$23$89$0$102$19$63$-94$102$-117$-2$95$-111$-67$-39$85$101$90$-115$-3$111$42$46$124$23$-86$23$55$111$66$-81$65$64$14$-99$-34$117$-81$-107$-32$38$-47$108$5$-2$39$46$-84$12$51$-101$0$104$-23$108$-35$-36$75$-6$-16$-27$57$82$-28$-44$22$-96$-28$39$-118$-25$119$115$-119$78$86$-43$73$29$-106$3$120$48$8$-73$-49$10$-88$121$63$70$-106$112$108$45$-33$-8$116$-44$-38$-68$55$-92$-26$84$80$-10$-116$108$-128$-73$100$-6$";
 
 // Mapeo de Sectores y Máquinas
@@ -8,7 +8,7 @@ const sectorsConfig = [
     { id: 2, name: "Impresión", machines: [{ id: 201, name: "TACHYS" }, { id: 202, name: "CHRONOS" }, { id: 203, name: "SIRIO" }, { id: 204, name: "VENUS 4" }] },
     { id: 3, name: "Laminado", machines: [{ id: 301, name: "SCHIAVI" }, { id: 302, name: "SUPER SIMPLEX" }] },
     { id: 4, name: "Refile", machines: [{ id: 401, name: "REFILADORA 1" }, { id: 402, name: "REFILADORA 2" }, { id: 403, name: "REFILADORA 3" }, { id: 404, name: "REFILADORA 4" }] },
-    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUNSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }] },
+    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUDSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }] },
     { id: 6, name: "Corte en Línea", machines: [{ id: 601, name: "ELBA 1" }, { id: 603, name: "ELBA 3" }, { id: 604, name: "POLIMAQUINA" }] },
     { id: 7, name: "Recuperado de Materia Prima", machines: [{ id: 701, name: "Recuperadora 1" }, { id: 702, name: "Recuperadora 2" }] }
 ];
@@ -26,6 +26,41 @@ const globalLabels = [
     "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", 
     "05:59"
 ];
+
+// Función para procesar y formatear de forma limpia las cantidades físicas de Atiles
+function obtenerRendimientoHTML(cantidadesPorUnidad) {
+    if (!cantidadesPorUnidad || Object.keys(cantidadesPorUnidad).length === 0) {
+        return `—`;
+    }
+
+    let partes = [];
+    
+    // 1. Si la máquina acumuló Metros (MT) -> Extrusión, Impresión, Laminado
+    if (cantidadesPorUnidad["MT"] && cantidadesPorUnidad["MT"] > 0) {
+        partes.push(`${Math.round(cantidadesPorUnidad["MT"]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">MT</span>`);
+    }
+
+    // 2. Si acumuló Unidades (UN) o Millares (MIL) -> Corte estándar
+    let totalUnidades = (cantidadesPorUnidad["UN"] || 0) + ((cantidadesPorUnidad["MIL"] || 0) * 1000);
+    if (totalUnidades > 0) {
+        partes.push(`${Math.round(totalUnidades).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
+    }
+
+    // 3. ¡EL CASO CLAVE!: Si la unidad de cantidad vino como KG en Corte/Corte en línea
+    // Significa que 'quantidade' son los bultos/paquetes físicos procesados.
+    if (cantidadesPorUnidad["KG"] && cantidadesPorUnidad["KG"] > 0) {
+        partes.push(`${Math.round(cantidadesPorUnidad["KG"]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
+    }
+
+    // 4. Resguardo por si aparece otra unidad rara
+    Object.keys(cantidadesPorUnidad).forEach(uni => {
+        if (uni !== "MT" && uni !== "UN" && uni !== "MIL" && uni !== "KG" && cantidadesPorUnidad[uni] > 0) {
+            partes.push(`${Math.round(cantidadesPorUnidad[uni]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px;">${uni}</span>`);
+        }
+    });
+
+    return partes.length > 0 ? partes.join(" / ") : `—`;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     initDatePicker();
@@ -254,6 +289,8 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         let machineHourlyHistory = Array(24).fill(0);
 
         // 3. Procesamiento de Producción con Filtro por Cierre/Pesada
+        let cantidadesAcumuladas = {}; // <-- Estructura dinámica para acumular por unidad
+
         if (Array.isArray(dataProd) && dataProd.length > 0) {
             dataProd.forEach(item => {
                 // PRIORIDAD ABSOLUTA: 1. Fecha Fin de Bobina -> 2. Fecha de Registro como fallback
@@ -266,6 +303,30 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
                     if (timestampReferencia >= estrictoInicio && timestampReferencia <= estrictoFin) {
                         const pesoItem = (Number(item.peso_bruto) || Number(item.peso_neto) || Number(item.peso) || 0);
                         totalProdKilos += pesoItem;
+                        
+                        // ACUMULACIÓN INTELIGENTE DE CANTIDADES FÍSICAS (Blindado contra cabeceras en 0)
+                        if (item.unidade) {
+                            const uni = item.unidade.toString().trim().toUpperCase();
+                            
+                            // 1. Intentamos leer la cantidad declarada en la cabecera principal
+                            let qtyItem = Number(item.quantidade) || 0;
+                            
+                            // 2. CONTINGENCIA PARA CORTE: Si la cabecera viene en 0 pero trae desgloses de fajos/lotes,
+                            // recorremos el array 'ap_lote' para rescatar y sumar las cantidades reales.
+                            if (qtyItem === 0 && Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
+                                item.ap_lote.forEach(lote => {
+                                    qtyItem += (Number(lote.quantidade) || 0);
+                                });
+                            }
+                            
+                            // 3. Si logramos rescatar un volumen real, lo acumulamos en su respectiva unidad
+                            if (qtyItem > 0) {
+                                if (!cantidadesAcumuladas[uni]) {
+                                    cantidadesAcumuladas[uni] = 0;
+                                }
+                                cantidadesAcumuladas[uni] += qtyItem;
+                            }
+                        }
                         
                         if (item.op) listaOPs.add(item.op.toString().trim());
                         if (item.nome_operador) listaOperadores.add(item.nome_operador.trim());
@@ -305,6 +366,7 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
 
         currentData[recursoId] = {
             production: totalProdKilos,
+            quantities: cantidadesAcumuladas, // <-- Guardamos el mapa de unidades completo
             scrap: totalScrapKilos,
             percentage: porcScrap,
             operadores: listaOperadores.size > 0 ? Array.from(listaOperadores).join(", ") : "Sin datos",
@@ -511,7 +573,8 @@ function renderDashboard(filterSector) {
         grid.className = "machines-grid";
 
         sector.machines.forEach(machine => {
-            const data = currentData[machine.id] || { production: 0, scrap: 0, percentage: "0.0", operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0) };
+            // Incorporamos el mapa dinámico 'quantities' en el fallback de seguridad
+            const data = currentData[machine.id] || { production: 0, quantities: {}, scrap: 0, percentage: "0.0", operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0) };
             
             const isNoSession = (data.production === 0 && data.scrap === 0);
             const sessionClass = isNoSession ? "machine-row no-session" : "machine-row";
@@ -527,6 +590,9 @@ function renderDashboard(filterSector) {
             if (!isNoSession && data.operadores && data.operadores !== "Sin datos" && data.operadores !== "—") {
                 operHTML = data.operadores.split(", ").map(op => `<span class="user-chip">${op}</span>`).join("");
             }
+
+            // Procesamos dinámicamente el metraje / unidades acumuladas de esta máquina
+            const rendimientoHTML = obtenerRendimientoHTML(data.quantities);
 
             const row = document.createElement("div");
             row.className = sessionClass;
@@ -550,8 +616,12 @@ function renderDashboard(filterSector) {
 
                     <div class="machine-stats">
                         <div class="stat-row">
-                            <span class="stat-label">Prod. Total:</span>
+                            <span class="stat-label">Producción KG:</span>
                             <span class="stat-value prod">${data.production.toLocaleString('es-AR', {maximumFractionDigits: 1})} kg</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Producción Mts/Bls:</span>
+                            <span class="stat-value qty" style="color: #f8cb38; font-weight: bold;">${rendimientoHTML}</span>
                         </div>
                         <div class="stat-row">
                             <span class="stat-label">Scrap Total:</span>
