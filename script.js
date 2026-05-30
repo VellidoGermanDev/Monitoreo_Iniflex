@@ -386,7 +386,8 @@ function calculateGlobalTotals() {
 
     const sectorTotals = {};
     sectorsConfig.forEach(sector => {
-        sectorTotals[sector.id] = { name: sector.name, production: 0, scrap: 0 };
+        // Añadimos 'quantities' para consolidar los metros/unidades de todo el sector
+        sectorTotals[sector.id] = { name: sector.name, production: 0, scrap: 0, quantities: {} };
     });
 
     Object.keys(currentData).forEach(recursoId => {
@@ -398,8 +399,19 @@ function calculateGlobalTotals() {
         const sectorAsociado = sectorsConfig.find(s => s.machines.some(m => m.id === idNumerico));
         
         if (sectorAsociado) {
-            sectorTotals[sectorAsociado.id].production += machineData.production;
-            sectorTotals[sectorAsociado.id].scrap += machineData.scrap;
+            const secObj = sectorTotals[sectorAsociado.id];
+            secObj.production += machineData.production;
+            secObj.scrap += machineData.scrap;
+
+            // CONSOLIDACIÓN EN LOTE DE RENDIMIENTO POR SECTOR
+            if (machineData.quantities) {
+                Object.keys(machineData.quantities).forEach(uni => {
+                    if (!secObj.quantities[uni]) {
+                        secObj.quantities[uni] = 0;
+                    }
+                    secObj.quantities[uni] += machineData.quantities[uni];
+                });
+            }
         }
     });
 
@@ -411,16 +423,23 @@ function calculateGlobalTotals() {
                 const secTotal = sec.production + sec.scrap;
                 const secPct = secTotal > 0 ? ((sec.scrap / secTotal) * 100).toFixed(1) : "0.0";
 
+                // Reutilizamos tu función para formatear el acumulado del sector de forma limpia
+                const rendimientoSectorHTML = obtenerRendimientoHTML(sec.quantities);
+
                 const card = document.createElement("div");
                 card.className = "sector-total-card";
                 card.innerHTML = `
                     <div class="sector-name">TOTAL ${sec.name}</div>
                     <div class="sector-stat">
-                        <span>Producción:</span>
+                        <span>Producción Peso:</span>
                         <span class="sector-val-prod">${Math.round(sec.production).toLocaleString('es-AR')} kg</span>
                     </div>
                     <div class="sector-stat">
-                        <span>Scrap:</span>
+                        <span>Volumen Total:</span>
+                        <span class="sector-val-qty" style="color: #f8cb38; font-weight: bold;">${rendimientoSectorHTML}</span>
+                    </div>
+                    <div class="sector-stat">
+                        <span>Scrap Sector:</span>
                         <span class="sector-val-scrap">${Math.round(sec.scrap).toLocaleString('es-AR')} kg</span>
                     </div>
                     <div class="sector-stat">
