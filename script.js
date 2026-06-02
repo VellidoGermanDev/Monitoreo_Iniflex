@@ -532,7 +532,7 @@ function initGlobalChart() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: true, labels: { color: '#aaa', font: { size: 12 } } },
+                legend: { display: true, labels: { color: '#ffffff', font: { size: 12 } } },
                 tooltip: {
                     backgroundColor: '#111',
                     titleColor: '#00f2fe',
@@ -724,12 +724,12 @@ function initIndividualCharts(filterSector) {
                     scales: {
                         x: {
                             grid: { color: 'rgba(255,255,255,0.02)', drawBorder: false },
-                            ticks: { color: '#555', font: { size: 9 } }
+                            ticks: { color: '#ffffff', font: { size: 9 } }
                         },
                         y: {
                             grid: { color: 'rgba(255,255,255,0.02)', drawBorder: false },
                             ticks: { 
-                                color: '#555', 
+                                color: '#ffffff', 
                                 font: { size: 9 },
                                 callback: v => v.toLocaleString('es-AR') + ' kg'
                             },
@@ -848,8 +848,8 @@ function setupTabs() {
         const minutos = ahora.getMinutes();
         const segundos = ahora.getSeconds();
 
-        // --- CÁLCULO DEL MINUTERO DECRECIENTE (Cada 10 min) ---
-        let restoMinutos = 9 - (minutos % 10);
+        // --- CÁLCULO DEL MINUTERO DECRECIENTE (Cada 15 min) ---
+        let restoMinutos = 14 - (minutos % 15);
         let restoSegundos = 59 - segundos;
 
         let minFormateado = restoMinutos.toString().padStart(2, '0');
@@ -861,7 +861,7 @@ function setupTabs() {
         }
 
         // --- CONTROL DEL MODAL (10s antes del corte) ---
-        const minutosDeCorte = [9, 19, 29, 39, 49, 59]; 
+        const minutosDeCorte = [14, 29, 45, 59]; 
         if (minutosDeCorte.includes(minutos) && segundos === 50) {
             if (modal.style.display === "none") {
                 iniciarCuentaRegresiva();
@@ -869,3 +869,65 @@ function setupTabs() {
         }
     }, 1000);
 })();
+
+// --- FUNCIÓN PARA DESCARGAR LA PÁGINA ACTUAL TAL CUAL SE VE EN PANTALLA ---
+function capturarPantallaAPDF() {
+    // Buscamos el contenedor principal de toda tu aplicación
+    const contenedorApp = document.querySelector('.app-container');
+    if (!contenedorApp) return;
+
+    // Capturamos la fecha seleccionada para usarla en el nombre del archivo
+    const fechaSeleccionada = document.getElementById("production-date").value || new Date().toISOString().split('T')[0];
+
+    // Cambiamos temporalmente el cursor para avisar que está procesando los gráficos
+    document.body.style.cursor = 'wait';
+    const boton = document.getElementById('btn-export-pdf');
+    if (boton) boton.disabled = true;
+
+    // Configuramos html2canvas para que clone el contenedor con alta calidad
+    html2canvas(contenedorApp, {
+        scale: 2,             // Duplica la resolución para que los textos y gráficos no salgan pixelados
+        useCORS: true,        // Permite procesar recursos externos si los hubiera
+        backgroundColor: '#0f111a', // Forzamos el color de fondo oscuro original de Atiles
+        logging: false
+    }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Importamos jsPDF de sus módulos globales
+        const { jsPDF } = window.jspdf;
+        
+        // Calculamos dimensiones para que se adapte de forma proporcional a una hoja A4
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const imgWidth = 210; // Ancho A4 en mm
+        const pageHeight = 295; // Alto A4 en mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        // Primera página
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+
+        // Si tu panel es muy largo y no entra en una sola hoja, genera páginas extra automáticamente
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+            heightLeft -= pageHeight;
+        }
+
+        // Descarga el archivo con la identidad visual intacta
+        pdf.save(`Panel_Iniflex_Captura_${fechaSeleccionada}.pdf`);
+        
+        // Restauramos los controles
+        document.body.style.cursor = 'default';
+        if (boton) boton.disabled = false;
+    }).catch(err => {
+        console.error("Error al generar la captura:", err);
+        document.body.style.cursor = 'default';
+        if (boton) boton.disabled = false;
+    });
+}
+
+// Vinculamos la acción al botón de la cabecera
+document.getElementById('btn-export-pdf').addEventListener('click', capturarPantallaAPDF);

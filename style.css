@@ -1335,7 +1335,7 @@ body {
 .machine-chart-cell canvas {
     width: 100% !important;
     height: 100% !important;
-    max-height: 165px;
+    max-height: 230px;
 }
 
 /* Contenedor de pantalla completa (Fondo semi-transparente) */
