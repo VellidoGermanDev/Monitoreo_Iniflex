@@ -114,6 +114,26 @@ function getSelectedDateRange() {
     const startMonthActual = String(fechaSeleccionada.getMonth() + 1).padStart(2, '0');
     document.getElementById("time-range").innerText = `Filtro OP: ${startDayActual}/${startMonthActual} 06:00 hs al ${endDay}/${endMonth} 05:59 hs`;
 
+    // =========================================================================
+    // ACTUALIZACIÓN DE FECHA SELECCIONADA (EVITA EL BUG DEL HUSO HORARIO)
+    // =========================================================================
+    const txtFechaActual = document.getElementById('current-date');
+    if (txtFechaActual) {
+        // Forzamos la fecha a mediodía (12:00) antes de pedir el formato local.
+        // Esto previene que los navegadores resten horas por zona horaria y cambien el día de la semana.
+        const fechaSegura = new Date(year, month - 1, day, 12, 0, 0);
+        
+        const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+        let fechaFormateada = fechaSegura.toLocaleDateString('es-AR', opciones);
+        
+        // Capitalizamos la primera letra (ej: "Lunes, 1 de junio de 2026")
+        fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1);
+        
+        // Pisamos el texto con el día seleccionado real
+        txtFechaActual.innerText = fechaFormateada;
+    }
+    // =========================================================================
+
     return {
         fechaBase: fechaSeleccionada,
         fechaFinStr: `${endDay}/${endMonth}/${fechaFinConsulta.getFullYear()} 05:59:59`
@@ -613,6 +633,45 @@ function renderDashboard(filterSector) {
             // Procesamos dinámicamente el metraje / unidades acumuladas de esta máquina
             const rendimientoHTML = obtenerRendimientoHTML(data.quantities);
 
+            // =========================================================================
+            // CALCULO DE TURNOS BASADO EN EL HISTORIAL HORARIO (06:00 a 05:59)
+            // =========================================================================
+            // Recordar que hourlyHistory guarda las 24 horas del día de producción:
+            // Índice 0 = 06:00 hs, Índice 1 = 07:00 hs ... Índice 23 = 05:00 hs.
+            let prodManana = 0; // Índices 0 al 7 (06:00 a 13:59)
+            let prodTarde  = 0; // Índices 8 al 15 (14:00 a 21:59)
+            let prodNoche  = 0; // Índices 16 al 23 (22:00 a 05:59)
+
+            if (data.hourlyHistory && data.hourlyHistory.length === 24) {
+                for (let i = 0; i < 24; i++) {
+                    if (i >= 0 && i < 8)   prodManana += data.hourlyHistory[i];
+                    else if (i >= 8 && i < 16) prodTarde  += data.hourlyHistory[i];
+                    else                       prodNoche  += data.hourlyHistory[i];
+                }
+            }
+
+            // Nota: Como la API no desglosa el scrap hora por hora de forma individual en 'hourlyHistory',
+            // calculamos el Scrap Proporcional estimado para cada turno según su volumen de producción.
+            // Si la máquina no produjo nada pero tiene scrap, se lo asignamos por completo al turno actual.
+            let scrapManana = 0;
+            let scrapTarde  = 0;
+            let scrapNoche  = 0;
+
+            if (data.scrap > 0) {
+                if (data.production > 0) {
+                    scrapManana = (prodManana / data.production) * data.scrap;
+                    scrapTarde  = (prodTarde / data.production) * data.scrap;
+                    scrapNoche  = (prodNoche / data.production) * data.scrap;
+                } else {
+                    // Contingencia por si hay scrap pero producción 0: se le asigna al turno de la hora actual
+                    const horaActual = new Date().getHours();
+                    if (horaActual >= 6 && horaActual < 14) scrapManana = data.scrap;
+                    else if (horaActual >= 14 && horaActual < 22) scrapTarde = data.scrap;
+                    else scrapNoche = data.scrap;
+                }
+            }
+            // =========================================================================
+
             const row = document.createElement("div");
             row.className = sessionClass;
             row.innerHTML = `
@@ -651,7 +710,31 @@ function renderDashboard(filterSector) {
                             <span class="stat-value">${data.percentage}%</span>
                         </div>
                     </div>
-                    <div class="scrap-bar-container">
+
+                    <div class="turnos-container">
+                        <div class="turno-row header-turno">
+                            <span>Turno (Horario)</span>
+                            <span>Prod (Kg)</span>
+                            <span>Scrap (Kg)</span>
+                        </div>
+                        <div class="turno-row">
+                            <span class="turno-name"><i class="fas fa-sun text-amber"></i> Mañana (06-14)</span>
+                            <span>${prodManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span class="${scrapManana > 0 ? 'text-red' : ''}">${scrapManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                        </div>
+                        <div class="turno-row">
+                            <span class="turno-name"><i class="fas fa-cloud-sun text-blue"></i> Tarde (14-22)</span>
+                            <span>${prodTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span class="${scrapTarde > 0 ? 'text-red' : ''}">${scrapTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                        </div>
+                        <div class="turno-row">
+                            <span class="turno-name"><i class="fas fa-moon text-purple"></i> Noche (22-06)</span>
+                            <span>${prodNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span class="${scrapNoche > 0 ? 'text-red' : ''}">${scrapNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                        </div>
+                    </div>
+
+                    <div class="scrap-bar-container" style="margin-top: 10px;">
                         <div class="scrap-bar" style="width: ${Math.min(parseFloat(data.percentage) * 4, 100)}%"></div>
                     </div>
                 </div>

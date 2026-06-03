@@ -1433,3 +1433,51 @@ body {
     color: #f8cb38; /* Tu color cian característico */
     text-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
 }
+
+/* --- Bloque Compacto de Turnos en Fila de Máquina --- */
+.turnos-container {
+    margin-top: 10px;
+    background-color: rgba(15, 17, 26, 0.4);
+    border: 1px solid var(--border-color, #2e344d);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.76rem;
+    max-width: 420px; /* Evita que se estire demasiado horizontalmente */
+}
+
+.turno-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    padding: 3px 0;
+    text-align: right;
+    border-bottom: 1px solid rgba(46, 52, 77, 0.3);
+}
+
+.turno-row:last-child {
+    border-bottom: none;
+}
+
+.header-turno {
+    font-weight: bold;
+    color: #888888;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+    padding-bottom: 2px;
+}
+
+.turno-row span:first-child {
+    text-align: left;
+}
+
+.turno-name {
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.text-amber { color: #f59e0b; }
+.text-blue { color: #3b82f6; }
+.text-purple { color: #a855f7; }
+.text-red { color: #ef4444; font-weight: bold; }
