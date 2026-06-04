@@ -1434,21 +1434,22 @@ body {
     text-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
 }
 
-/* --- Bloque Compacto de Turnos en Fila de Máquina --- */
+/* --- Bloque Estructurado de Turnos con 4 Columnas --- */
 .turnos-container {
     margin-top: 10px;
     background-color: rgba(15, 17, 26, 0.4);
     border: 1px solid var(--border-color, #2e344d);
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 8px 14px;
     font-size: 0.76rem;
-    max-width: 420px; /* Evita que se estire demasiado horizontalmente */
+    max-width: 520px; /* Expandido ligeramente para albergar de forma cómoda las 4 columnas */
 }
 
 .turno-row {
     display: grid;
+    /* Redefinimos la grilla para 4 columnas equilibradas */
     grid-template-columns: 1.5fr 1fr 1fr;
-    padding: 3px 0;
+    padding: 4px 0;
     text-align: right;
     border-bottom: 1px solid rgba(46, 52, 77, 0.3);
 }
@@ -1459,11 +1460,10 @@ body {
 
 .header-turno {
     font-weight: bold;
-    color: #888888;
+    color: #94a3b8;
     text-transform: uppercase;
     font-size: 0.65rem;
     letter-spacing: 0.5px;
-    padding-bottom: 2px;
 }
 
 .turno-row span:first-child {
@@ -1474,7 +1474,6 @@ body {
     color: #ffffff;
     display: flex;
     align-items: center;
-    gap: 6px;
 }
 
 .text-amber { color: #f59e0b; }

@@ -65,10 +65,23 @@ function obtenerRendimientoHTML(cantidadesPorUnidad) {
 document.addEventListener("DOMContentLoaded", () => {
     initDatePicker();
     updateDateTime();
-    fetchDashboardData();
     setupTabs();
     
+    // Verificamos si esta pestaña ya estaba activa consultando los datos
+    const yaEstabaCargado = sessionStorage.getItem("panel_iniciado");
+    
+    if (yaEstabaCargado === "true") {
+        // Si el panel ya se había usado (o se autorefrescó), mantiene los datos vivos
+        fetchDashboardData();
+    } else {
+        // Si la pestaña se abre de cero por primera vez, NO CARGA NADA.
+        // Se queda quieto esperando a que presiones el botón.
+        console.log("Panel en espera. Presione 'Actualizar' para iniciar el monitoreo.");
+    }
+    
+    // Al presionar el botón "Actualizar" a mano, marcamos que el panel ya inició el ciclo
     document.getElementById("btn-refresh").addEventListener("click", () => {
+        sessionStorage.setItem("panel_iniciado", "true");
         fetchDashboardData();
     });
 });
@@ -115,7 +128,7 @@ function getSelectedDateRange() {
     document.getElementById("time-range").innerText = `Filtro OP: ${startDayActual}/${startMonthActual} 06:00 hs al ${endDay}/${endMonth} 05:59 hs`;
 
     // =========================================================================
-    // ACTUALIZACIÓN DE FECHA SELECCIONADA (EVITA EL BUG DEL HUSO HORARIO)
+    // ACTUALIZACIÓN DE FECHA SELECCIONADA (EVITA EL BUG DEL USO HORARIO)
     // =========================================================================
     const txtFechaActual = document.getElementById('current-date');
     if (txtFechaActual) {
@@ -713,22 +726,22 @@ function renderDashboard(filterSector) {
 
                     <div class="turnos-container">
                         <div class="turno-row header-turno">
-                            <span>Turno (Horario)</span>
+                            <span>Turno</span>
                             <span>Prod (Kg)</span>
                             <span>Scrap (Kg)</span>
                         </div>
                         <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-sun text-amber"></i> Mañana (06-14)</span>
+                            <span class="turno-name"><i class="fas fa-sun text-amber"></i>Mañana</span>
                             <span>${prodManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                             <span class="${scrapManana > 0 ? 'text-red' : ''}">${scrapManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
                         <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-cloud-sun text-blue"></i> Tarde (14-22)</span>
+                            <span class="turno-name"><i class="fas fa-cloud-sun text-blue"></i>Tarde</span>
                             <span>${prodTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                             <span class="${scrapTarde > 0 ? 'text-red' : ''}">${scrapTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
                         <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-moon text-purple"></i> Noche (22-06)</span>
+                            <span class="turno-name"><i class="fas fa-moon text-purple"></i>Noche</span>
                             <span>${prodNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                             <span class="${scrapNoche > 0 ? 'text-red' : ''}">${scrapNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
