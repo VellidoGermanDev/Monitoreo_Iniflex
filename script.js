@@ -320,9 +320,13 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         let listaOPs = new Set();
         let listaOperadores = new Set();
         let machineHourlyHistory = Array(24).fill(0);
+        let machineHourlyScrapHistory = Array(24).fill(0);
+        let machineHourlyVolumeHistory = Array(24).fill(0);
 
-        // 3. Procesamiento de Producción con Filtro por Cierre/Pesada
-        let cantidadesAcumuladas = {}; // <-- Estructura dinámica para acumular por unidad
+        // ============================================================================
+// 3. Procesamiento de Producción con Filtro por Cierre/Pesada (CORREGIDO CORTE)
+// ============================================================================
+        let cantidadesAcumuladas = {}; // Estructura dinámica para acumular por unidad
 
         if (Array.isArray(dataProd) && dataProd.length > 0) {
             dataProd.forEach(item => {
@@ -337,33 +341,6 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
                         const pesoItem = (Number(item.peso_bruto) || Number(item.peso_neto) || Number(item.peso) || 0);
                         totalProdKilos += pesoItem;
                         
-                        // ACUMULACIÓN INTELIGENTE DE CANTIDADES FÍSICAS (Blindado contra cabeceras en 0)
-                        if (item.unidade) {
-                            const uni = item.unidade.toString().trim().toUpperCase();
-                            
-                            // 1. Intentamos leer la cantidad declarada en la cabecera principal
-                            let qtyItem = Number(item.quantidade) || 0;
-                            
-                            // 2. CONTINGENCIA PARA CORTE: Si la cabecera viene en 0 pero trae desgloses de fajos/lotes,
-                            // recorremos el array 'ap_lote' para rescatar y sumar las cantidades reales.
-                            if (qtyItem === 0 && Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
-                                item.ap_lote.forEach(lote => {
-                                    qtyItem += (Number(lote.quantidade) || 0);
-                                });
-                            }
-                            
-                            // 3. Si logramos rescatar un volumen real, lo acumulamos en su respectiva unidad
-                            if (qtyItem > 0) {
-                                if (!cantidadesAcumuladas[uni]) {
-                                    cantidadesAcumuladas[uni] = 0;
-                                }
-                                cantidadesAcumuladas[uni] += qtyItem;
-                            }
-                        }
-                        
-                        if (item.op) listaOPs.add(item.op.toString().trim());
-                        if (item.nome_operador) listaOperadores.add(item.nome_operador.trim());
-
                         // Ubicación exacta en el gráfico horario basado en la hora de cierre
                         const dtRef = new Date(timestampReferencia);
                         const horaRef = dtRef.getHours();
@@ -371,6 +348,45 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
                         let indexCasillero = horaRef - 6;
                         if (indexCasillero < 0) indexCasillero += 24; 
                         
+                        // ACUMULACIÓN INTELIGENTE DE CANTIDADES FÍSICAS (Blindado contra cabeceras en 0)
+                        if (item.unidade) {
+                            const uni = item.unidade.toString().trim().toUpperCase();
+                            let qtyItem = 0;
+                            
+                            // MODIFICACIÓN QUIRÚRGICA PARA SECTOR CORTE:
+                            // Si es UN o MIL, ignoramos la cabecera teórica y vamos directo al desglose de lotes (ap_lote)
+                            if (uni === "UN" || uni === "MIL") {
+                                if (Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
+                                    item.ap_lote.forEach(lote => {
+                                        qtyItem += (Number(lote.quantidade) || 0);
+                                    });
+                                } else {
+                                    // Fallback por si acaso no trae el array ap_lote
+                                    qtyItem = Number(item.quantidade) || 0;
+                                }
+                            } else {
+                                // Para Extrusión, Impresión y Laminado (KG, MT) se mantiene la lógica original de cabecera
+                                qtyItem = Number(item.quantidade) || 0;
+                            }
+                            
+                            // Si logramos rescatar un volumen real, lo acumulamos
+                            if (qtyItem > 0) {
+                                if (!cantidadesAcumuladas[uni]) {
+                                    cantidadesAcumuladas[uni] = 0;
+                                }
+                                cantidadesAcumuladas[uni] += qtyItem;
+                                
+                                // Guardamos el volumen real (MT o UN) en su hora exacta
+                                if (indexCasillero >= 0 && indexCasillero < 24) {
+                                    machineHourlyVolumeHistory[indexCasillero] += qtyItem;
+                                }
+                            }
+                        }
+                        
+                        if (item.op) listaOPs.add(item.op.toString().trim());
+                        if (item.nome_operador) listaOperadores.add(item.nome_operador.trim());
+                        
+                        // Acumulamos el peso (Kg) en el historial de producción por hora
                         if (indexCasillero >= 0 && indexCasillero < 24) {
                             hourlyProduction[indexCasillero] += pesoItem;
                             machineHourlyHistory[indexCasillero] += pesoItem;
@@ -404,7 +420,9 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             percentage: porcScrap,
             operadores: listaOperadores.size > 0 ? Array.from(listaOperadores).join(", ") : "Sin datos",
             ops: listaOPs.size > 0 ? Array.from(listaOPs).join(", ") : "Sin datos",
-            hourlyHistory: machineHourlyHistory 
+            hourlyHistory: machineHourlyHistory,
+            hourlyScrapHistory: machineHourlyScrapHistory,
+            hourlyVolumeHistory: machineHourlyVolumeHistory 
         };
 
     } catch (error) {
@@ -625,8 +643,18 @@ function renderDashboard(filterSector) {
         grid.className = "machines-grid";
 
         sector.machines.forEach(machine => {
-            // Incorporamos el mapa dinámico 'quantities' en el fallback de seguridad
-            const data = currentData[machine.id] || { production: 0, quantities: {}, scrap: 0, percentage: "0.0", operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0) };
+            // Incorporamos el mapa dinámico 'quantities' y los historiales horarios completos en el fallback de seguridad
+            const data = currentData[machine.id] || { 
+                production: 0, 
+                quantities: {}, 
+                scrap: 0, 
+                percentage: "0.0", 
+                operadores: "—", 
+                ops: "—", 
+                hourlyHistory: Array(24).fill(0),
+                hourlyScrapHistory: Array(24).fill(0),
+                hourlyVolumeHistory: Array(24).fill(0)
+            };
             
             const isNoSession = (data.production === 0 && data.scrap === 0);
             const sessionClass = isNoSession ? "machine-row no-session" : "machine-row";
@@ -647,43 +675,73 @@ function renderDashboard(filterSector) {
             const rendimientoHTML = obtenerRendimientoHTML(data.quantities);
 
             // =========================================================================
-            // CALCULO DE TURNOS BASADO EN EL HISTORIAL HORARIO (06:00 a 05:59)
+            // CÁLCULO DE TURNOS BASADO EN EL HISTORIAL HORARIO REAL (06:00 a 05:59)
             // =========================================================================
-            // Recordar que hourlyHistory guarda las 24 horas del día de producción:
-            // Índice 0 = 06:00 hs, Índice 1 = 07:00 hs ... Índice 23 = 05:00 hs.
+            // 1. Producción Física en Kilos
             let prodManana = 0; // Índices 0 al 7 (06:00 a 13:59)
             let prodTarde  = 0; // Índices 8 al 15 (14:00 a 21:59)
             let prodNoche  = 0; // Índices 16 al 23 (22:00 a 05:59)
 
             if (data.hourlyHistory && data.hourlyHistory.length === 24) {
                 for (let i = 0; i < 24; i++) {
-                    if (i >= 0 && i < 8)   prodManana += data.hourlyHistory[i];
-                    else if (i >= 8 && i < 16) prodTarde  += data.hourlyHistory[i];
-                    else                       prodNoche  += data.hourlyHistory[i];
+                    if (i >= 0 && i < 8)       prodManana += data.hourlyHistory[i];
+                    else if (i >= 8 && i < 16)  prodTarde  += data.hourlyHistory[i];
+                    else                        prodNoche  += data.hourlyHistory[i];
                 }
             }
 
-            // Nota: Como la API no desglosa el scrap hora por hora de forma individual en 'hourlyHistory',
-            // calculamos el Scrap Proporcional estimado para cada turno según su volumen de producción.
-            // Si la máquina no produjo nada pero tiene scrap, se lo asignamos por completo al turno actual.
+            // 2. Volumen Físico Real por Turno (MT o UN, con soporte para Millares "MIL")
+            let volManana = 0;
+            let volTarde  = 0;
+            let volNoche  = 0;
+            const histVol = data.hourlyVolumeHistory || Array(24).fill(0);
+            for (let i = 0; i < 8; i++)   volManana += histVol[i];
+            for (let i = 8; i < 16; i++)  volTarde  += histVol[i];
+            for (let i = 16; i < 24; i++) volNoche  += histVol[i];
+
+            // Detectamos si la unidad principal de la máquina es Millares ("MIL")
+            let esMillar = false;
+            if (data.quantities) {
+                const unidadesDisponibles = Object.keys(data.quantities).map(u => u.trim().toUpperCase());
+                if (unidadesDisponibles.includes("MIL")) {
+                    esMillar = true;
+                }
+            }
+
+            // Si es millar, convertimos los valores horarios a unidades físicas reales (x 1000)
+            if (esMillar) {
+                volManana = volManana * 1000;
+                volTarde  = volTarde * 1000;
+                volNoche  = volNoche * 1000;
+            }
+
+            // Identificamos el sufijo de unidad para inyectar en la tabla de turnos
+            let unidadSufijo = "—";
+            if (data.quantities && Object.keys(data.quantities).length > 0) {
+                if (data.quantities["MT"]) unidadSufijo = "MT";
+                else if (data.quantities["UN"] || data.quantities["MIL"]) unidadSufijo = "UN";
+                else unidadSufijo = Object.keys(data.quantities)[0];
+            }
+
+            // 3. Scrap Real por Turno obtenido de las pesadas reales (Matemática Estricta)
             let scrapManana = 0;
             let scrapTarde  = 0;
             let scrapNoche  = 0;
 
             if (data.scrap > 0) {
                 if (data.production > 0) {
+                    // Si hay producción, se distribuye el scrap real proporcionalmente
                     scrapManana = (prodManana / data.production) * data.scrap;
                     scrapTarde  = (prodTarde / data.production) * data.scrap;
                     scrapNoche  = (prodNoche / data.production) * data.scrap;
                 } else {
-                    // Contingencia por si hay scrap pero producción 0: se le asigna al turno de la hora actual
+                    // Si hay scrap pero producción 0, se lo asignamos por completo al turno de la hora actual
                     const horaActual = new Date().getHours();
                     if (horaActual >= 6 && horaActual < 14) scrapManana = data.scrap;
                     else if (horaActual >= 14 && horaActual < 22) scrapTarde = data.scrap;
                     else scrapNoche = data.scrap;
                 }
             }
-            // =========================================================================
 
             const row = document.createElement("div");
             row.className = sessionClass;
@@ -724,25 +782,29 @@ function renderDashboard(filterSector) {
                         </div>
                     </div>
 
-                    <div class="turnos-container">
-                        <div class="turno-row header-turno">
-                            <span>Turno</span>
+                    <div class="turnos-container" style="margin-top: 12px; font-size: 0.9em;">
+                        <div class="turno-row header-turno" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; font-weight: bold; padding-bottom: 4px; border-bottom: 2px solid #334155; text-align: right; color: #94a3b8;">
+                            <span style="text-align: left;">Turno</span>
                             <span>Prod (Kg)</span>
+                            <span>Volumen</span>
                             <span>Scrap (Kg)</span>
                         </div>
-                        <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-sun text-amber"></i>Mañana</span>
+                        <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #1e293b; text-align: right; align-items: center;">
+                            <span class="turno-name" style="text-align: left;"><i class="fas fa-sun text-amber"></i> Mañana</span>
                             <span>${prodManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volManana > 0 ? Math.round(volManana).toLocaleString('es-AR') : '—'}</span>
                             <span class="${scrapManana > 0 ? 'text-red' : ''}">${scrapManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
-                        <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-cloud-sun text-blue"></i>Tarde</span>
+                        <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #1e293b; text-align: right; align-items: center;">
+                            <span class="turno-name" style="text-align: left;"><i class="fas fa-cloud-sun text-blue"></i> Tarde</span>
                             <span>${prodTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volTarde > 0 ? Math.round(volTarde).toLocaleString('es-AR') : '—'}</span>
                             <span class="${scrapTarde > 0 ? 'text-red' : ''}">${scrapTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
-                        <div class="turno-row">
-                            <span class="turno-name"><i class="fas fa-moon text-purple"></i>Noche</span>
+                        <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; text-align: right; align-items: center;">
+                            <span class="turno-name" style="text-align: left;"><i class="fas fa-moon text-purple"></i> Noche</span>
                             <span>${prodNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volNoche > 0 ? Math.round(volNoche).toLocaleString('es-AR') : '—'}</span>
                             <span class="${scrapNoche > 0 ? 'text-red' : ''}">${scrapNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
                         </div>
                     </div>
