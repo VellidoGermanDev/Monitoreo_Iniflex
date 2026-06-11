@@ -1159,7 +1159,7 @@ body {
 
 /* Estado especial: Máquina sin producción ni scrap en el día */
 .machine-row.no-session {
-    opacity: 0.6;
+    opacity: 0.5;
     border-style: dashed;
     border-color: #3a4150;
 }
@@ -1332,7 +1332,7 @@ body {
 .machine-chart-cell canvas {
     width: 100% !important;
     height: 100% !important;
-    max-height: 230px;
+    max-height: 300px;
 }
 
 /* Contenedor de pantalla completa (Fondo semi-transparente) */

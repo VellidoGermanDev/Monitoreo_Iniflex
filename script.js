@@ -530,9 +530,9 @@ const shiftsBackgroundPlugin = {
         // Definimos los cortes exactos según los índices de las etiquetas (0 a 24)
         // Índice 0 = 06:00, Índice 8 = 14:00, Índice 16 = 22:00, Índice 24 = 05:59
         const turnos = [
-            { startIdx: 0, endIdx: 8, color: 'rgba(46, 204, 113, 0.04)' },  // Mañana (Verde sutil)
-            { startIdx: 8, endIdx: 16, color: 'rgba(52, 152, 219, 0.04)' }, // Tarde (Azul sutil)
-            { startIdx: 16, endIdx: 24, color: 'rgba(231, 76, 60, 0.04)' }  // Noche (Rojo sutil)
+            { startIdx: 0, endIdx: 8, color: 'rgba(60, 255, 141, 0.05)' },  // Mañana (Verde sutil)
+            { startIdx: 8, endIdx: 16, color: 'rgba(62, 178, 255, 0.05)' }, // Tarde (Azul sutil)
+            { startIdx: 16, endIdx: 24, color: 'rgba(255, 86, 68, 0.05)' }  // Noche (Rojo sutil)
         ];
 
         ctx.save();
@@ -901,7 +901,7 @@ function setupTabs() {
         <div class="refresh-modal-content">
             <div class="refresh-spinner"></div>
             <h2>ACTUALIZANDO DATOS DE LA PLANTA</h2>
-            <div id="refresh-countdown">10</div>
+            <div id="refresh-countdown">20</div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -971,8 +971,8 @@ function setupTabs() {
         const minutos = ahora.getMinutes();
         const segundos = ahora.getSeconds();
 
-        // --- CÁLCULO DEL MINUTERO DECRECIENTE (Cada 15 min) ---
-        let restoMinutos = 14 - (minutos % 15);
+        // --- CÁLCULO DEL MINUTERO DECRECIENTE (Cada 20 min) ---
+        let restoMinutos = 19 - (minutos % 20);
         let restoSegundos = 59 - segundos;
 
         let minFormateado = restoMinutos.toString().padStart(2, '0');
@@ -984,7 +984,7 @@ function setupTabs() {
         }
 
         // --- CONTROL DEL MODAL (10s antes del corte) ---
-        const minutosDeCorte = [14, 29, 45, 59]; 
+        const minutosDeCorte = [19, 39, 59]; 
         if (minutosDeCorte.includes(minutos) && segundos === 50) {
             if (modal.style.display === "none") {
                 iniciarCuentaRegresiva();
