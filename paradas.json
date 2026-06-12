@@ -1,0 +1,5 @@
+{
+  "mantenimiento": ["FALLO DE MÁQUINA"],
+  "puesta_a_punto": ["PUESTA A PUNTO", "CALIBRACIÓN", "AJUSTE POR ESPECIF. TECNICA"],
+  "resto": ["FALTA DE MATERIAL", "ESPERA DE OPERARIO", "OTRAS"]
+}

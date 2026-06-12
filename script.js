@@ -19,6 +19,47 @@ let hourlyProduction = Array(24).fill(0);
 let productionChartInstance = null; 
 let individualChartsInstances = {}; // Almacena las instancias de los gráficos individuales
 
+// Variable global para guardar el mapa de OPs
+window.mapaNombresOps = {};
+
+// Función para leer el archivo ops.json local
+async function cargarCatalogoOps() {
+    try {
+        const response = await fetch('ops.json');
+        if (response.ok) {
+            window.mapaNombresOps = await response.json();
+            console.log("Catálogo local de OPs cargado con éxito.");
+        }
+    } catch (error) {
+        console.error("Error al cargar ops.json:", error);
+    }
+}
+
+// Función que arma el bloque HTML vertical
+function obtenerListaOpsHTML(opsString) {
+    let html = `<div class="ops-vertical-list">`;
+
+    if (opsString && opsString !== "—" && opsString !== "Sin Carga" && opsString !== "Sin datos") {
+        const listaDeOps = opsString.split(',').map(op => op.trim());
+        
+        listaDeOps.forEach(opNum => {
+            const nombreProducto = (window.mapaNombresOps && window.mapaNombresOps[opNum]) 
+                ? window.mapaNombresOps[opNum] 
+                : "Sin descripción en catálogo local" ;
+
+            html += `
+                <div class="op-row-item" title="${nombreProducto}">
+                    <span class="op-number-tag">${opNum}: ${nombreProducto}</span>
+                </div>`;
+        });
+    } else {
+        html += `<div style="color: #94a3b8; font-size: 0.75rem; font-style: italic; padding: 4px;">Sin OPs activas</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
 // Etiquetas base de tiempo para los gráficos (25 puntos para cierre exacto)
 const globalLabels = [
     "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", 
@@ -62,20 +103,22 @@ function obtenerRendimientoHTML(cantidadesPorUnidad) {
     return partes.length > 0 ? partes.join(" / ") : `—`;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => { // <-- Agregamos async acá
     initDatePicker();
     updateDateTime();
     setupTabs();
+    
+    // CARGA CRÍTICA: Traemos el catálogo de OPs local antes de procesar cualquier cosa
+    await cargarCatalogoOps(); 
     
     // Verificamos si esta pestaña ya estaba activa consultando los datos
     const yaEstabaCargado = sessionStorage.getItem("panel_iniciado");
     
     if (yaEstabaCargado === "true") {
-        // Si el panel ya se había usado (o se autorefrescó), mantiene los datos vivos
+        // Si el panel ya se había usado, mantiene los datos vivos
         fetchDashboardData();
     } else {
         // Si la pestaña se abre de cero por primera vez, NO CARGA NADA.
-        // Se queda quieto esperando a que presiones el botón.
         console.log("Panel en espera. Presione 'Actualizar' para iniciar el monitoreo.");
     }
     
@@ -720,7 +763,7 @@ function renderDashboard(filterSector) {
                     <div class="machine-history-container">
                         <div class="history-section">
                             <span class="history-label">OPs Procesadas</span>
-                            <div class="chips-wrapper">${opsHTML}</div>
+                            ${obtenerListaOpsHTML(data.ops)}
                         </div>
                         <div class="history-section">
                             <span class="history-label">Personal del Día</span>
@@ -745,6 +788,9 @@ function renderDashboard(filterSector) {
                             <span class="stat-label">% Scrap:</span>
                             <span class="stat-value">${data.percentage}%</span>
                         </div>
+                        <div class="scrap-bar-container" style="margin-top: 10px;">
+                            <div class="scrap-bar" style="width: ${Math.min(parseFloat(data.percentage) * 3, 100)}%"></div>
+                        </div>          
                     </div>
 
                     <div class="turnos-container" style="margin-top: 12px; font-size: 0.9em;">
@@ -772,10 +818,6 @@ function renderDashboard(filterSector) {
                             <span style="color: #f8cb38; font-weight: 500;">${volNoche > 0 ? Math.round(volNoche).toLocaleString('es-AR') : '—'}</span>
                             <span class="${scrapNoche > 0 ? 'text-red' : ''}">${scrapNoche > 0 ? scrapNoche.toLocaleString('es-AR', {maximumFractionDigits: 1}) : '—'}</span>
                         </div>
-                    </div>
-
-                    <div class="scrap-bar-container" style="margin-top: 10px;">
-                        <div class="scrap-bar" style="width: ${Math.min(parseFloat(data.percentage) * 4, 100)}%"></div>
                     </div>
                 </div>
 

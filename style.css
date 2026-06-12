@@ -175,7 +175,7 @@ body {
 
 .machines-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); /* Subimos de 300px a 380px */
     gap: 20px;
 }
 
@@ -189,6 +189,37 @@ body {
     flex-direction: column;
     justify-content: space-between;
     gap: 15px;
+}
+
+/* Nuevo contenedor elástico para listar las OPs una debajo de otra */
+.ops-vertical-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* Separación sutil entre filas de OPs */
+    margin-top: 5px;
+    padding-right: 2px;
+}
+
+/* Estilo para cada fila compacta de OP + Nombre */
+.op-row-item {
+    background: rgba(255, 159, 67, 0.06); /* Fondo ámbar/naranja super sutil */
+    border: 1px solid rgba(255, 159, 67, 0.15);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.70rem; /* Tamaño compacto industrial */
+    line-height: 1.2;
+    color: #f3f4f6;
+    display: block;
+    word-break: break-word; /* Si el nombre es extremadamente largo, salta de línea sin romper */
+}
+
+/* Resaltador exclusivo para el número de OP */
+.op-row-item .op-number-tag {
+    color: #f59e0b; /* Tu color ámbar/naranja para las OPs */
+    font-family: monospace;
+    font-weight: 700;
+    margin-right: 5px;
+    flex-shrink: 0; /* Para que el número no se achique si el texto es muy largo */
 }
 
 /* ==========================================================================
@@ -1068,21 +1099,10 @@ body {
 }
 
 .chips-wrapper {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 5px;
-    max-height: 52px;
-    overflow-y: auto;
     padding-right: 2px;
-}
-
-/* Scrollbar ultra fino para los wrappers */
-.chips-wrapper::-webkit-scrollbar {
-    width: 3px;
-}
-.chips-wrapper::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
 }
 
 /* Estilo de los micro-chips individuales */
@@ -1235,17 +1255,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    max-height: 42px; /* Controlamos la altura para que no desplace las estadísticas */
-    overflow-y: auto;
     padding-right: 2px;
-}
-
-/* Micro-scroll minimalista por si entran muchos operadores en rotación */
-.chips-wrapper::-webkit-scrollbar {
-    width: 2px;
-}
-.chips-wrapper::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
 }
 
 .op-chip {
