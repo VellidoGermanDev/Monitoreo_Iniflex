@@ -133,6 +133,40 @@ body {
     font-weight: 400;
 }
 
+.turnos-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+/* Forzamos que las cards de turnos se vean igual a las de arriba */
+.turno-card {
+    display: flex;
+    align-items: center;
+    background: #161c26;
+    padding: 15px 20px;
+    border-radius: 12px;
+}
+
+.turno-card .kpi-icon {
+    font-size: 1.8rem;
+    margin-right: 20px;
+    opacity: 0.8;
+}
+
+.turno-card .kpi-info h3 {
+    font-size: 0.90rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.turno-card .kpi-info p {
+    font-size: 0.90rem;
+    margin: 2px 0;
+}
+
 /* Navegación de Sectores */
 .sector-tabs {
     display: flex;
@@ -1342,7 +1376,7 @@ body {
 .machine-chart-cell canvas {
     width: 100% !important;
     height: 100% !important;
-    max-height: 300px;
+    max-height: 350px;
 }
 
 /* Contenedor de pantalla completa (Fondo semi-transparente) */

@@ -259,6 +259,9 @@ async function fetchDashboardData() {
         
         console.log("Procesando totales globales...");
         calculateGlobalTotals();
+
+        console.log("Procesando totales Turnos...");
+        actualizarIndicadoresTurnos();
         
         const activeTab = document.querySelector(".tab-btn.active").dataset.sector;
         renderDashboard(activeTab);
@@ -547,6 +550,45 @@ function calculateGlobalTotals() {
     document.getElementById("global-prod").innerHTML = `${totalProd.toLocaleString('es-AR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} <span class="unit">kg</span>`;
     document.getElementById("global-scrap").innerHTML = `${totalScrap.toLocaleString('es-AR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} <span class="unit">kg</span>`;
     document.getElementById("global-scrap-percentage").innerText = `${globalScrapPercent}%`;
+}
+
+function actualizarIndicadoresTurnos() {
+    let totals = {
+        mañana: { p: 0, s: 0 },
+        tarde:  { p: 0, s: 0 },
+        noche:  { p: 0, s: 0 }
+    };
+
+    Object.values(currentData).forEach(data => {
+        if (data.hourlyHistory && data.hourlyHistory.length === 24) {
+            const histProd = data.hourlyHistory;
+            const histScrap = data.hourlyScrapHistory || Array(24).fill(0);
+
+            for (let i = 0; i < 24; i++) {
+                if (i >= 0 && i < 8) {
+                    totals.mañana.p += histProd[i];
+                    totals.mañana.s += histScrap[i];
+                } else if (i >= 8 && i < 16) {
+                    totals.tarde.p += histProd[i];
+                    totals.tarde.s += histScrap[i];
+                } else {
+                    totals.noche.p += histProd[i];
+                    totals.noche.s += histScrap[i];
+                }
+            }
+        }
+    });
+
+    // Actualizar los recuadros
+    for (let t in totals) {
+        const p = totals[t].p;
+        const s = totals[t].s;
+        const pct = (p + s) > 0 ? ((s / (p + s)) * 100).toFixed(1) : "0.0";
+
+        document.getElementById(`turno-${t}-prod`).innerText = Math.round(p).toLocaleString('es-AR');
+        document.getElementById(`turno-${t}-scrap`).innerText = Math.round(s).toLocaleString('es-AR');
+        document.getElementById(`turno-${t}-pct`).innerText = pct;
+    }
 }
 
 // Generador de degradados de fondo para turnos (Reutilizable para optimizar rendimiento)
