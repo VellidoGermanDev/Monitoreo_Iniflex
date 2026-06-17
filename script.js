@@ -838,9 +838,9 @@ function renderDashboard(filterSector) {
                     <div class="turnos-container" style="margin-top: 12px; font-size: 0.9em;">
                         <div class="turno-row header-turno" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; font-weight: bold; padding-bottom: 4px; border-bottom: 2px solid #334155; text-align: right; color: #94a3b8;">
                             <span style="text-align: left;">Turno</span>
-                            <span>Prod (Kg)</span>
-                            <span>Volumen</span>
-                            <span>Scrap (Kg)</span>
+                            <span>Prod(Kg)</span>
+                            <span>Mts/Bls</span>
+                            <span>Scrap</span>
                         </div>
                         <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #1e293b; text-align: right; align-items: center;">
                             <span class="turno-name" style="text-align: left;"><i class="fas fa-sun text-amber"></i> Mañana</span>
