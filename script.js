@@ -702,7 +702,6 @@ function renderDashboard(filterSector) {
     const container = document.getElementById("machines-container");
     container.innerHTML = "";
 
-    // Destruimos instancias anteriores de gráficos de máquinas para liberar memoria
     Object.keys(individualChartsInstances).forEach(id => {
         if (individualChartsInstances[id]) individualChartsInstances[id].destroy();
     });
@@ -723,17 +722,10 @@ function renderDashboard(filterSector) {
         grid.className = "machines-grid";
 
         sector.machines.forEach(machine => {
-            // Incorporamos el mapa dinámico 'quantities' y los historiales horarios completos en el fallback de seguridad
             const data = currentData[machine.id] || { 
-                production: 0, 
-                quantities: {}, 
-                scrap: 0, 
-                percentage: "0.0", 
-                operadores: "—", 
-                ops: "—", 
-                hourlyHistory: Array(24).fill(0),
-                hourlyScrapHistory: Array(24).fill(0),
-                hourlyVolumeHistory: Array(24).fill(0)
+                production: 0, quantities: {}, scrap: 0, percentage: "0.0", 
+                operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0),
+                hourlyScrapHistory: Array(24).fill(0), hourlyVolumeHistory: Array(24).fill(0)
             };
             
             const isNoSession = (data.production === 0 && data.scrap === 0);
@@ -751,47 +743,44 @@ function renderDashboard(filterSector) {
                 operHTML = data.operadores.split(", ").map(op => `<span class="user-chip">${op}</span>`).join("");
             }
 
-            // Procesamos dinámicamente el metraje / unidades acumuladas de esta máquina
             const rendimientoHTML = obtenerRendimientoHTML(data.quantities);
 
             // =========================================================================
-            // CÁLCULO DE TURNOS EN BASE A DATOS REALES REGISTRADOS (06:00 a 05:59)
+            // LÓGICA DE CÁLCULO ADAPTADA (Conversión Inteligente)
             // =========================================================================
-            let prodManana = 0; let prodTarde  = 0; let prodNoche  = 0;
-            let volManana  = 0; let volTarde   = 0; let volNoche   = 0;
+            let prodManana = 0; let prodTarde = 0; let prodNoche = 0;
+            let volManana = 0;  let volTarde = 0;  let volNoche = 0;
             let scrapManana = 0; let scrapTarde = 0; let scrapNoche = 0;
 
-            // 1. Sumamos la producción real por turno
-            if (data.hourlyHistory && data.hourlyHistory.length === 24) {
+            // Identificar si la máquina requiere conversión de millares
+            const esMillar = data.quantities && Object.keys(data.quantities).map(u => u.trim().toUpperCase()).includes("MIL");
+            
+            // Función de conversión segura: solo multiplica si el número es "chico"
+            const aplicarConversion = (valor) => (esMillar && valor > 0 && valor < 500) ? valor * 1000 : valor;
+
+            // 1. Sumamos producción
+            if (data.hourlyHistory) {
                 for (let i = 0; i < 24; i++) {
-                    if (i >= 0 && i < 8)       prodManana += data.hourlyHistory[i];
-                    else if (i >= 8 && i < 16)  prodTarde  += data.hourlyHistory[i];
-                    else                        prodNoche  += data.hourlyHistory[i];
+                    let val = data.hourlyHistory[i];
+                    if (i < 8) prodManana += val; else if (i < 16) prodTarde += val; else prodNoche += val;
                 }
             }
 
-            // 2. Sumamos el volumen real (Mts/Bls) por turno
+            // 2. Sumamos volumen con conversión inteligente
             const histVol = data.hourlyVolumeHistory || Array(24).fill(0);
-            for (let i = 0; i < 8; i++)   volManana += histVol[i];
-            for (let i = 8; i < 16; i++)  volTarde  += histVol[i];
-            for (let i = 16; i < 24; i++) volNoche  += histVol[i];
-
-            // Ajuste por millares (MIL) para el sector Corte
-            let esMillar = false;
-            if (data.quantities) {
-                const unidadesDisponibles = Object.keys(data.quantities).map(u => u.trim().toUpperCase());
-                if (unidadesDisponibles.includes("MIL")) esMillar = true;
-            }
-            if (esMillar) {
-                volManana *= 1000; volTarde *= 1000; volNoche *= 1000;
+            for (let i = 0; i < 24; i++) {
+                let volConvertido = aplicarConversion(histVol[i]);
+                if (i < 8) volManana += volConvertido;
+                else if (i < 16) volTarde += volConvertido;
+                else volNoche += volConvertido;
             }
 
-            // 3. Sumamos el SCRAP REAL cargado por hora en cada turno (Auditoría Estricta)
+            // 3. Sumamos scrap
             const histScrap = data.hourlyScrapHistory || Array(24).fill(0);
-            for (let i = 0; i < 8; i++)   scrapManana += histScrap[i];
-            for (let i = 8; i < 16; i++)  scrapTarde  += histScrap[i];
-            for (let i = 16; i < 24; i++) scrapNoche  += histScrap[i];
-            // =========================================================================
+            for (let i = 0; i < 24; i++) {
+                let val = histScrap[i];
+                if (i < 8) scrapManana += val; else if (i < 16) scrapTarde += val; else scrapNoche += val;
+            }
 
             const row = document.createElement("div");
             row.className = sessionClass;
@@ -874,7 +863,6 @@ function renderDashboard(filterSector) {
         container.appendChild(sectorBlock);
     });
 
-    // Fase 3: Una vez inyectado todo el HTML en la pantalla, inicializamos los gráficos uno por uno
     initIndividualCharts(filterSector);
 }
 
