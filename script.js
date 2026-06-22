@@ -73,30 +73,32 @@ function obtenerRendimientoHTML(cantidadesPorUnidad) {
     if (!cantidadesPorUnidad || Object.keys(cantidadesPorUnidad).length === 0) {
         return `—`;
     }
-
-    let partes = [];
     
-    // 1. Si la máquina acumuló Metros (MT) -> Extrusión, Impresión, Laminado
-    if (cantidadesPorUnidad["MT"] && cantidadesPorUnidad["MT"] > 0) {
-        partes.push(`${Math.round(cantidadesPorUnidad["MT"]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">MT</span>`);
+    let partes = [];
+    // 1. Metros (MT)
+    if (cantidadesPorUnidad["MT"] > 0) {
+        // Usamos .toLocaleString sin redondear prematuramente
+        partes.push(`${cantidadesPorUnidad["MT"].toLocaleString('es-AR', {maximumFractionDigits: 0})} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">MT</span>`);
     }
 
-    // 2. Si acumuló Unidades (UN) o Millares (MIL) -> Corte estándar
+    // 2. Unidades y Millares (UN + MIL)
+    // ELIMINAMOS Math.round aquí. Si 19.5 * 1000 = 19500, el resultado es exacto.
     let totalUnidades = (cantidadesPorUnidad["UN"] || 0) + ((cantidadesPorUnidad["MIL"] || 0) * 1000);
+    
     if (totalUnidades > 0) {
-        partes.push(`${Math.round(totalUnidades).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
+        // .toLocaleString ya maneja los puntos de miles correctamente (ej: 19.500)
+        partes.push(`${totalUnidades.toLocaleString('es-AR', {maximumFractionDigits: 0})} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
     }
 
-    // 3. ¡EL CASO CLAVE!: Si la unidad de cantidad vino como KG en Corte/Corte en línea
-    // Significa que 'quantidade' son los bultos/paquetes físicos procesados.
-    if (cantidadesPorUnidad["KG"] && cantidadesPorUnidad["KG"] > 0) {
-        partes.push(`${Math.round(cantidadesPorUnidad["KG"]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
+    // 3. KG en Corte
+    if (cantidadesPorUnidad["KG"] > 0) {
+        partes.push(`${cantidadesPorUnidad["KG"].toLocaleString('es-AR', {maximumFractionDigits: 0})} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px; color: #f8cb38;">UN</span>`);
     }
 
-    // 4. Resguardo por si aparece otra unidad rara
+    // 4. Otras unidades
     Object.keys(cantidadesPorUnidad).forEach(uni => {
-        if (uni !== "MT" && uni !== "UN" && uni !== "MIL" && uni !== "KG" && cantidadesPorUnidad[uni] > 0) {
-            partes.push(`${Math.round(cantidadesPorUnidad[uni]).toLocaleString('es-AR')} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px;">${uni}</span>`);
+        if (!["MT", "UN", "MIL", "KG"].includes(uni) && cantidadesPorUnidad[uni] > 0) {
+            partes.push(`${cantidadesPorUnidad[uni].toLocaleString('es-AR', {maximumFractionDigits: 0})} <span class="unit-badge" style="font-size: 0.85em; opacity: 0.8; margin-left: 2px;">${uni}</span>`);
         }
     });
 
@@ -366,7 +368,10 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         let listaOPs = new Set();
         let listaOperadores = new Set();
         let machineHourlyHistory = Array(24).fill(0);
-        let machineHourlyVolumeHistory = Array(24).fill(0); // Para los metros/unidades
+        // CORREGIDO: en vez de un solo número por hora (que mezclaba MIL/UN/KG sin distinguir),
+        // ahora cada casillero de hora guarda un objeto { "MIL": x, "UN": y, "KG": z, ... }
+        // para poder convertir cada unidad correctamente sin heurísticas de "valor chico".
+        let machineHourlyVolumeByUnit = Array.from({ length: 24 }, () => ({}));
         let machineHourlyScrapHistory = Array(24).fill(0);  // <-- NUEVO: Historial real de scrap por hora
 
         // 3. Procesamiento de Producción con Filtro por Cierre/Pesada
@@ -405,9 +410,13 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
                                 }
                                 cantidadesAcumuladas[uni] += qtyItem;
                                 
-                                // Guardamos el volumen en su hora
+                                // Guardamos el volumen en su hora, separado por unidad real
+                                // (CORREGIDO: antes se sumaba todo junto sin distinguir MIL/UN/KG)
                                 if (indexCasillero >= 0 && indexCasillero < 24) {
-                                    machineHourlyVolumeHistory[indexCasillero] += qtyItem;
+                                    if (!machineHourlyVolumeByUnit[indexCasillero][uni]) {
+                                        machineHourlyVolumeByUnit[indexCasillero][uni] = 0;
+                                    }
+                                    machineHourlyVolumeByUnit[indexCasillero][uni] += qtyItem;
                                 }
                             }
                         }
@@ -463,13 +472,19 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             operadores: listaOperadores.size > 0 ? Array.from(listaOperadores).join(", ") : "Sin datos",
             ops: listaOPs.size > 0 ? Array.from(listaOPs).join(", ") : "Sin datos",
             hourlyHistory: machineHourlyHistory,
-            hourlyVolumeHistory: machineHourlyVolumeHistory,
+            hourlyVolumeByUnit: machineHourlyVolumeByUnit,
             hourlyScrapHistory: machineHourlyScrapHistory // <-- ENVIAMOS EL HISTORIAL REAL
         };
 
     } catch (error) {
         console.error(`Error consultando recurso ${recursoId}:`, error);
-        currentData[recursoId] = { production: 0, scrap: 0, percentage: "0.0", operadores: "Error de red", ops: "—", hourlyHistory: Array(24).fill(0) };
+        currentData[recursoId] = { 
+            production: 0, quantities: {}, scrap: 0, percentage: "0.0", 
+            operadores: "Error de red", ops: "—", 
+            hourlyHistory: Array(24).fill(0),
+            hourlyVolumeByUnit: Array.from({ length: 24 }, () => ({})),
+            hourlyScrapHistory: Array(24).fill(0)
+        };
     }
 }
 
@@ -585,8 +600,18 @@ function actualizarIndicadoresTurnos() {
         const s = totals[t].s;
         const pct = (p + s) > 0 ? ((s / (p + s)) * 100).toFixed(1) : "0.0";
 
-        document.getElementById(`turno-${t}-prod`).innerText = Math.round(p).toLocaleString('es-AR');
-        document.getElementById(`turno-${t}-scrap`).innerText = Math.round(s).toLocaleString('es-AR');
+        // Usamos toLocaleString con maximumFractionDigits: 1 para mostrar el decimal
+        // Esto permite que '98.9' se vea '98,9' sin redondear a 99.
+        document.getElementById(`turno-${t}-prod`).innerText = p.toLocaleString('es-AR', {
+            minimumFractionDigits: 1, 
+            maximumFractionDigits: 1
+        });
+        
+        document.getElementById(`turno-${t}-scrap`).innerText = s.toLocaleString('es-AR', {
+            minimumFractionDigits: 1, 
+            maximumFractionDigits: 1
+        });
+        
         document.getElementById(`turno-${t}-pct`).innerText = pct;
     }
 }
@@ -725,7 +750,7 @@ function renderDashboard(filterSector) {
             const data = currentData[machine.id] || { 
                 production: 0, quantities: {}, scrap: 0, percentage: "0.0", 
                 operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0),
-                hourlyScrapHistory: Array(24).fill(0), hourlyVolumeHistory: Array(24).fill(0)
+                hourlyScrapHistory: Array(24).fill(0), hourlyVolumeByUnit: Array(24).fill(0)
             };
             
             const isNoSession = (data.production === 0 && data.scrap === 0);
@@ -756,7 +781,7 @@ function renderDashboard(filterSector) {
             const esMillar = data.quantities && Object.keys(data.quantities).map(u => u.trim().toUpperCase()).includes("MIL");
             
             // Función de conversión segura: solo multiplica si el número es "chico"
-            const aplicarConversion = (valor) => (esMillar && valor > 0 && valor < 500) ? valor * 1000 : valor;
+            const aplicarConversion = (valor) => (esMillar && valor > 0 && valor) ? valor * 1000 : valor;
 
             // 1. Sumamos producción
             if (data.hourlyHistory) {
@@ -767,12 +792,25 @@ function renderDashboard(filterSector) {
             }
 
             // 2. Sumamos volumen con conversión inteligente
-            const histVol = data.hourlyVolumeHistory || Array(24).fill(0);
+            const histVol = data.hourlyVolumeByUnit || Array(24).fill({});
             for (let i = 0; i < 24; i++) {
-                let volConvertido = aplicarConversion(histVol[i]);
-                if (i < 8) volManana += volConvertido;
-                else if (i < 16) volTarde += volConvertido;
-                else volNoche += volConvertido;
+                let volHora = 0;
+                const horaActual = histVol[i];
+
+                // JERARQUÍA: Si existe valor en MIL, ese es el dato real. 
+                // Si no hay MIL, buscamos UN. Si no hay, buscamos MT.
+                if (horaActual["MIL"] && horaActual["MIL"] > 0) {
+                    volHora = horaActual["MIL"] * 1000;
+                } else if (horaActual["UN"] && horaActual["UN"] > 0) {
+                    volHora = horaActual["UN"];
+                } else if (horaActual["MT"] && horaActual["MT"] > 0) {
+                    volHora = horaActual["MT"];
+                }
+
+                // Ahora asignamos al turno correspondiente
+                if (i < 8) volManana += volHora;
+                else if (i < 16) volTarde += volHora;
+                else volNoche += volHora;
             }
 
             // 3. Sumamos scrap
@@ -831,22 +869,25 @@ function renderDashboard(filterSector) {
                             <span>Mts/Bls</span>
                             <span>Scrap</span>
                         </div>
+                        
                         <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #1e293b; text-align: right; align-items: center;">
                             <span class="turno-name" style="text-align: left;"><i class="fas fa-sun text-amber"></i> Mañana</span>
                             <span>${prodManana.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
-                            <span style="color: #f8cb38; font-weight: 500;">${volManana > 0 ? Math.round(volManana).toLocaleString('es-AR') : '—'}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volManana > 0 ? volManana.toLocaleString('es-AR', {maximumFractionDigits: 0}) : '—'}</span>
                             <span class="${scrapManana > 0 ? 'text-red' : ''}">${scrapManana > 0 ? scrapManana.toLocaleString('es-AR', {maximumFractionDigits: 1}) : '—'}</span>
                         </div>
+                        
                         <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #1e293b; text-align: right; align-items: center;">
                             <span class="turno-name" style="text-align: left;"><i class="fas fa-cloud-sun text-blue"></i> Tarde</span>
                             <span>${prodTarde.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
-                            <span style="color: #f8cb38; font-weight: 500;">${volTarde > 0 ? Math.round(volTarde).toLocaleString('es-AR') : '—'}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volTarde > 0 ? volTarde.toLocaleString('es-AR', {maximumFractionDigits: 0}) : '—'}</span>
                             <span class="${scrapTarde > 0 ? 'text-red' : ''}">${scrapTarde > 0 ? scrapTarde.toLocaleString('es-AR', {maximumFractionDigits: 1}) : '—'}</span>
                         </div>
+                        
                         <div class="turno-row" style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; padding: 5px 0; text-align: right; align-items: center;">
                             <span class="turno-name" style="text-align: left;"><i class="fas fa-moon text-purple"></i> Noche</span>
                             <span>${prodNoche.toLocaleString('es-AR', {maximumFractionDigits: 1})}</span>
-                            <span style="color: #f8cb38; font-weight: 500;">${volNoche > 0 ? Math.round(volNoche).toLocaleString('es-AR') : '—'}</span>
+                            <span style="color: #f8cb38; font-weight: 500;">${volNoche > 0 ? volNoche.toLocaleString('es-AR', {maximumFractionDigits: 0}) : '—'}</span>
                             <span class="${scrapNoche > 0 ? 'text-red' : ''}">${scrapNoche > 0 ? scrapNoche.toLocaleString('es-AR', {maximumFractionDigits: 1}) : '—'}</span>
                         </div>
                     </div>
@@ -857,6 +898,9 @@ function renderDashboard(filterSector) {
                 </div>
             `;
             grid.appendChild(row);
+
+            // Agrega esto arriba de la línea 875
+            console.log("Máquina:", machine.id, "Estructura real del objeto:", data);
         });
 
         sectorBlock.appendChild(grid);
