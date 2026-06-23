@@ -820,9 +820,25 @@ function renderDashboard(filterSector) {
                 if (i < 8) scrapManana += val; else if (i < 16) scrapTarde += val; else scrapNoche += val;
             }
 
+            // 1. Determinamos si la máquina está inactiva (cero producción y cero scrap)
+            const tieneActividad = (prodManana + prodTarde + prodNoche > 0) || (scrapManana + scrapTarde + scrapNoche > 0);
+
             const row = document.createElement("div");
             row.className = sessionClass;
-            row.innerHTML = `
+
+            // 2. Renderizado condicional
+            if (!tieneActividad) {
+                // Si no hay actividad, mostramos el mensaje simplificado
+                row.innerHTML = `
+                    <div class="machine-data-cell" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; padding: 40px; border: 1px dashed #334155; border-radius: 8px;">
+                        <div style="text-align: center; color: #94a3b8; font-size: 1.2em; font-weight: bold;">
+                            <i class="fas fa-power-off" style="display: block; margin-bottom: 10px; font-size: 2em; opacity: 0.5;"></i>
+                            ${machine.name}: SIN PRODUCCIÓN
+                        </div>
+                    </div>
+                `;
+            } else {
+                row.innerHTML = `
                 <div class="machine-data-cell">
                     <div class="machine-header">
                         <span class="machine-name">${machine.name}</span>
@@ -896,7 +912,9 @@ function renderDashboard(filterSector) {
                 <div class="machine-chart-cell">
                     <canvas id="sparkline-${machine.id}"></canvas>
                 </div>
-            `;
+                `;
+            }
+
             grid.appendChild(row);
 
             // Agrega esto arriba de la línea 875
