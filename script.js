@@ -364,6 +364,25 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         const dataProd = resProd.ok ? await resProd.json() : [];
         const dataScrap = resScrap.ok ? await resScrap.json() : [];
 
+        ///// VERIFICACIÓN DE ERRORES UNITARIOS EN LOS DATOS RECIBIDOS PARA MOSTRAR EN MODAL /////
+
+        // 1. Validar Producción
+        dataProd.forEach(p => {
+            const peso = Number(p.peso) || 0;
+            // Excluir recuperado (recurso 701, ajústalo si es otro)
+            if (p.recurso != 701 && p.recurso != 702 && (peso < 2 || peso > 650)) {
+                console.warn(`[ERROR PRODUCCIÓN] Recurso: ${p.recurso} | Op: ${p.op} | Peso: ${peso}kg | Operador: ${p.nome_operador} | Hora: ${p.data_hora_fim}`);
+            }
+        });
+
+        // 2. Validar Scrap
+        dataScrap.forEach(s => {
+            const peso = Number(s.peso) || 0;
+            if (peso > 200) {
+                console.warn(`[ERROR SCRAP] Recurso: ${s.recurso} | Op: ${s.op} | Peso: ${peso}kg | Operador: ${s.nome_operador} | Hora: ${s.data_hora}`);
+            }
+        });
+
         let totalProdKilos = 0;
         let listaOPs = new Set();
         let listaOperadores = new Set();
@@ -752,7 +771,7 @@ function renderDashboard(filterSector) {
                 operadores: "—", ops: "—", hourlyHistory: Array(24).fill(0),
                 hourlyScrapHistory: Array(24).fill(0), hourlyVolumeByUnit: Array(24).fill(0)
             };
-            
+
             const isNoSession = (data.production === 0 && data.scrap === 0);
             const sessionClass = isNoSession ? "machine-row no-session" : "machine-row";
             
@@ -768,10 +787,22 @@ function renderDashboard(filterSector) {
                 operHTML = data.operadores.split(", ").map(op => `<span class="user-chip">${op}</span>`).join("");
             }
 
+            const esElba4 = (machine.id == 509); //ESTA VARIABLE ES PARA CORREGIR ELBA 4 (ID 509) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
+            const esHecce2 = (machine.id == 505); //ESTA VARIABLE ES PARA CORREGIR HECCE 2 (ID 505) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
+
+            if (data.quantities) { ////////// ESTO DEBE SER ELIMINADO CUANDO SE HAGA LA CORRECCIÓN DE UNIDADES //////////
+                if (esElba4 || esHecce2) { 
+                    // Debemos iterar sobre las claves del objeto y dividir sus valores
+                    Object.keys(data.quantities).forEach(key => {
+                        data.quantities[key] = data.quantities[key] / 2;
+                    });
+                }
+            }
+
             const rendimientoHTML = obtenerRendimientoHTML(data.quantities);
 
             // =========================================================================
-            // LÓGICA DE CÁLCULO ADAPTADA (Conversión Inteligente)
+            // LÓGICA DE CÁLCULO ADAPTADA (Conversión Inteligente + Corrector ELBA 4)
             // =========================================================================
             let prodManana = 0; let prodTarde = 0; let prodNoche = 0;
             let volManana = 0;  let volTarde = 0;  let volNoche = 0;
@@ -779,9 +810,6 @@ function renderDashboard(filterSector) {
 
             // Identificar si la máquina requiere conversión de millares
             const esMillar = data.quantities && Object.keys(data.quantities).map(u => u.trim().toUpperCase()).includes("MIL");
-            
-            // Función de conversión segura: solo multiplica si el número es "chico"
-            const aplicarConversion = (valor) => (esMillar && valor > 0 && valor) ? valor * 1000 : valor;
 
             // 1. Sumamos producción
             if (data.hourlyHistory) {
@@ -791,14 +819,12 @@ function renderDashboard(filterSector) {
                 }
             }
 
-            // 2. Sumamos volumen con conversión inteligente
+            // 2. Sumamos volumen con jerarquía de unidades
             const histVol = data.hourlyVolumeByUnit || Array(24).fill({});
             for (let i = 0; i < 24; i++) {
                 let volHora = 0;
                 const horaActual = histVol[i];
 
-                // JERARQUÍA: Si existe valor en MIL, ese es el dato real. 
-                // Si no hay MIL, buscamos UN. Si no hay, buscamos MT.
                 if (horaActual["MIL"] && horaActual["MIL"] > 0) {
                     volHora = horaActual["MIL"] * 1000;
                 } else if (horaActual["UN"] && horaActual["UN"] > 0) {
@@ -807,7 +833,6 @@ function renderDashboard(filterSector) {
                     volHora = horaActual["MT"];
                 }
 
-                // Ahora asignamos al turno correspondiente
                 if (i < 8) volManana += volHora;
                 else if (i < 16) volTarde += volHora;
                 else volNoche += volHora;
@@ -820,6 +845,20 @@ function renderDashboard(filterSector) {
                 if (i < 8) scrapManana += val; else if (i < 16) scrapTarde += val; else scrapNoche += val;
             }
 
+            // =========================================================================
+            // CORRECCIÓN ESPECÍFICA PARA ELBA 4 (ID 509) Y HECCE 2 (ID 505)
+            // =========================================================================
+            if (esElba4 || esHecce2) {
+                volManana = volManana / 2;
+                volTarde = volTarde / 2;
+                volNoche = volNoche / 2;
+                
+                // Si necesitas corregir también la propiedad general del objeto data 
+                // para que coincida con el total en la cabecera:
+                data.production = data.production; // KG no se toca
+            ////////// ESTO DEBE SER ELIMINADO CUANDO SE HAGA LA CORRECCIÓN DE UNIDADES //////////    
+            }
+
             // 1. Determinamos si la máquina está inactiva (cero producción y cero scrap)
             const tieneActividad = (prodManana + prodTarde + prodNoche > 0) || (scrapManana + scrapTarde + scrapNoche > 0);
 
@@ -830,10 +869,15 @@ function renderDashboard(filterSector) {
             if (!tieneActividad) {
                 // Si no hay actividad, mostramos el mensaje simplificado
                 row.innerHTML = `
-                    <div class="machine-data-cell" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; padding: 40px; border: 1px dashed #334155; border-radius: 8px;">
+                    <div class="machine-data-cell" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; padding: 40px; border: 1px dashed #ff1c1c; border-radius: 8px;">
                         <div style="text-align: center; color: #94a3b8; font-size: 1.2em; font-weight: bold;">
                             <i class="fas fa-power-off" style="display: block; margin-bottom: 10px; font-size: 2em; opacity: 0.5;"></i>
-                            ${machine.name}: SIN PRODUCCIÓN
+                            ${machine.name}
+                        </div>
+                    </div>
+                    <div class="machine-chart-cell" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; padding: 40px; border: 1px dashed #ff1c1c; border-radius: 8px;">
+                        <div style="text-align: center; color: #94a3b8; font-size: 1.2em; font-weight: bold;">
+                            SIN PRODUCCIÓN
                         </div>
                     </div>
                 `;
