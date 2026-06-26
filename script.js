@@ -4,11 +4,11 @@ const API_KEY = "-7$-20$111$60$91$-89$81$-72$34$9$39$-20$-22$-64$24$-24$-83$-32$
 
 // Mapeo de Sectores y Máquinas
 const sectorsConfig = [
-    { id: 1, name: "Extrusión", machines: Array.from({ length: 16 }, (_, i) => ({ id: 101 + i, name: `Extrusora ${i + 1}` })) },
+    { id: 1, name: "Extrusión", machines: Array.from({ length: 16 }, (_, i) => ({ id: 101 + i, name: `EXTRUSURA ${i + 1}` })) },
     { id: 2, name: "Impresión", machines: [{ id: 201, name: "TACHYS" }, { id: 202, name: "CHRONOS" }, { id: 203, name: "SIRIO" }, { id: 204, name: "VENUS 4" }] },
     { id: 3, name: "Laminado", machines: [{ id: 301, name: "SCHIAVI" }, { id: 302, name: "SUPER SIMPLEX" }] },
     { id: 4, name: "Refile", machines: [{ id: 401, name: "REFILADORA 1" }, { id: 402, name: "REFILADORA 2" }, { id: 403, name: "REFILADORA 3" }, { id: 404, name: "REFILADORA 4" }] },
-    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUDSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }] },
+    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUDSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }, { id: 513, name: "POLIMAQUINA 4 SOLD." }] },
     { id: 6, name: "Corte en Línea", machines: [{ id: 601, name: "ELBA 1" }, { id: 603, name: "ELBA 3" }, { id: 604, name: "POLIMAQUINA" }] },
     { id: 7, name: "Recuperado de Materia Prima", machines: [{ id: 701, name: "Recuperadora 1" }, { id: 702, name: "Recuperadora 2" }] }
 ];
@@ -364,24 +364,74 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         const dataProd = resProd.ok ? await resProd.json() : [];
         const dataScrap = resScrap.ok ? await resScrap.json() : [];
 
-        ///// VERIFICACIÓN DE ERRORES UNITARIOS EN LOS DATOS RECIBIDOS PARA MOSTRAR EN MODAL /////
+        // --- VALIDACIÓN INTEGRADA: PROD Y SCRAP ---
+        let huboError = false;
+        const ahora = new Date();
+        const VENTANA_GRACIA_MS = 20 * 60 * 1000; // 20 minutos en milisegundos
 
-        // 1. Validar Producción
-        dataProd.forEach(p => {
-            const peso = Number(p.peso) || 0;
-            // Excluir recuperado (recurso 701, ajústalo si es otro)
-            if (p.recurso != 701 && p.recurso != 702 && (peso < 2 || peso > 650)) {
-                console.warn(`[ERROR PRODUCCIÓN] Recurso: ${p.recurso} | Op: ${p.op} | Peso: ${peso}kg | Operador: ${p.nome_operador} | Hora: ${p.data_hora_fim}`);
+        // Función auxiliar para comparar fechas
+        function esMuyReciente(fechaStr) {
+            if (!fechaStr) return false;
+            // Asumiendo formato "DD/MM/YYYY HH:mm:ss" según tu JSON
+            const partes = fechaStr.split(/[\/\s:]/); 
+            const fechaRegistro = new Date(partes[2], partes[1] - 1, partes[0], partes[3], partes[4], partes[5]);
+            
+            return (ahora - fechaRegistro) < VENTANA_GRACIA_MS;
+        }
+
+        // 1. Producción
+        dataProd.forEach(item => {
+            let esFallaProd = false;
+            const horaRegistro = item.data_hora_fim || item.data_registro;
+
+            // Si el registro es de hace menos de 20 min, lo ignoramos (ventana de gracia)
+            if (esMuyReciente(horaRegistro)) return; 
+
+            if (Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
+                item.ap_lote.forEach(lote => {
+                    if (lote.peso < 2 || lote.peso > 650) {
+                        esFallaProd = true;
+                        console.warn("ALERTA PROD (LOTE): Máq " + item.recurso + " | OP " + item.op + " | Peso " + lote.peso + "kg | Hora " + horaRegistro);
+                    }
+                });
+            } else {
+                let pesoGeneral = Number(item.peso || 0);
+                if (item.recurso != 701 && item.recurso != 702 && (pesoGeneral < 2 || pesoGeneral > 650)) {
+                    esFallaProd = true;
+                    console.warn("ALERTA PROD (GENERAL): Máq " + item.recurso + " | OP " + item.op + " | Peso " + pesoGeneral + "kg | Hora " + horaRegistro);
+                }
             }
+            if (esFallaProd) huboError = true;
         });
 
-        // 2. Validar Scrap
-        dataScrap.forEach(s => {
-            const peso = Number(s.peso) || 0;
-            if (peso > 200) {
-                console.warn(`[ERROR SCRAP] Recurso: ${s.recurso} | Op: ${s.op} | Peso: ${peso}kg | Operador: ${s.nome_operador} | Hora: ${s.data_hora}`);
+        // 2. Scrap (Misma lógica)
+        dataScrap.forEach(item => {
+            let esFallaScrap = false;
+            const horaRegistro = item.data_hora || item.data_hora_ini;
+
+            if (esMuyReciente(horaRegistro)) return;
+
+            if (Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
+                item.ap_lote.forEach(lote => {
+                    if (lote.peso > 200) {
+                        esFallaScrap = true;
+                        console.warn("ALERTA SCRAP (LOTE): Máq " + item.recurso + " | OP " + item.op + " | Peso " + lote.peso + "kg | Hora " + horaRegistro);
+                    }
+                });
+            } else {
+                let pesoScrapGeneral = Number(item.peso || 0);
+                if (pesoScrapGeneral > 200) {
+                    esFallaScrap = true;
+                    console.warn("ALERTA SCRAP (GENERAL): Máq " + item.recurso + " | OP " + item.op + " | Peso " + pesoScrapGeneral + "kg | Hora " + horaRegistro);
+                }
             }
+            if (esFallaScrap) huboError = true;
         });
+
+        // 3. Disparo
+        if (huboError) {
+            document.getElementById('modalDatosIncorrectos').style.display = 'block';
+        }
 
         let totalProdKilos = 0;
         let listaOPs = new Set();
@@ -391,7 +441,7 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         // ahora cada casillero de hora guarda un objeto { "MIL": x, "UN": y, "KG": z, ... }
         // para poder convertir cada unidad correctamente sin heurísticas de "valor chico".
         let machineHourlyVolumeByUnit = Array.from({ length: 24 }, () => ({}));
-        let machineHourlyScrapHistory = Array(24).fill(0);  // <-- NUEVO: Historial real de scrap por hora
+        let machineHourlyScrapHistory = Array(24).fill(0);  // <-- Historial real de scrap por hora
 
         // 3. Procesamiento de Producción con Filtro por Cierre/Pesada
         let cantidadesAcumuladas = {}; 
@@ -789,9 +839,10 @@ function renderDashboard(filterSector) {
 
             const esElba4 = (machine.id == 509); //ESTA VARIABLE ES PARA CORREGIR ELBA 4 (ID 509) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
             const esHecce2 = (machine.id == 505); //ESTA VARIABLE ES PARA CORREGIR HECCE 2 (ID 505) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
+            const esMobert = (machine.id == 511);
 
             if (data.quantities) { ////////// ESTO DEBE SER ELIMINADO CUANDO SE HAGA LA CORRECCIÓN DE UNIDADES //////////
-                if (esElba4 || esHecce2) { 
+                if (esElba4 || esHecce2 || esMobert) { 
                     // Debemos iterar sobre las claves del objeto y dividir sus valores
                     Object.keys(data.quantities).forEach(key => {
                         data.quantities[key] = data.quantities[key] / 2;
@@ -848,7 +899,7 @@ function renderDashboard(filterSector) {
             // =========================================================================
             // CORRECCIÓN ESPECÍFICA PARA ELBA 4 (ID 509) Y HECCE 2 (ID 505)
             // =========================================================================
-            if (esElba4 || esHecce2) {
+            if (esElba4 || esHecce2 || esMobert) {
                 volManana = volManana / 2;
                 volTarde = volTarde / 2;
                 volNoche = volNoche / 2;
@@ -960,9 +1011,6 @@ function renderDashboard(filterSector) {
             }
 
             grid.appendChild(row);
-
-            // Agrega esto arriba de la línea 875
-            console.log("Máquina:", machine.id, "Estructura real del objeto:", data);
         });
 
         sectorBlock.appendChild(grid);
