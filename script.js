@@ -8,7 +8,7 @@ const sectorsConfig = [
     { id: 2, name: "Impresión", machines: [{ id: 201, name: "TACHYS" }, { id: 202, name: "CHRONOS" }, { id: 203, name: "SIRIO" }, { id: 204, name: "VENUS 4" }] },
     { id: 3, name: "Laminado", machines: [{ id: 301, name: "SCHIAVI" }, { id: 302, name: "SUPER SIMPLEX" }] },
     { id: 4, name: "Refile", machines: [{ id: 401, name: "REFILADORA 1" }, { id: 402, name: "REFILADORA 2" }, { id: 403, name: "REFILADORA 3" }, { id: 404, name: "REFILADORA 4" }] },
-    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUDSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }, { id: 513, name: "POLIMAQUINA 4 SOLD." }] },
+    { id: 5, name: "Corte", machines: [{ id: 501, name: "RUDRA 1" }, { id: 502, name: "RUDRA 2" }, { id: 503, name: "DEBERNARDI" }, { id: 504, name: "HECCE" }, { id: 505, name: "HECCE 2" }, { id: 506, name: "HUDSON" }, { id: 509, name: "ELBA 4" }, { id: 510, name: "ELBA 5" }, { id: 511, name: "MOBERT" }, { id: 512, name: "MOLINO" }, { id: 513, name: "POLIMAQUINA 4 SOLD." }] },
     { id: 6, name: "Corte en Línea", machines: [{ id: 601, name: "ELBA 1" }, { id: 603, name: "ELBA 3" }, { id: 604, name: "POLIMAQUINA" }] },
     { id: 7, name: "Recuperado de Materia Prima", machines: [{ id: 701, name: "Recuperadora 1" }, { id: 702, name: "Recuperadora 2" }] }
 ];
@@ -378,6 +378,34 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             
             return (ahora - fechaRegistro) < VENTANA_GRACIA_MS;
         }
+
+        //////////////////////////////////////////////////////
+        //LOGICA DE PRUEBA PARA TOMAR LOS CAMBIOS DE TRABAJO//
+        //////////////////////////////////////////////////////
+        const datosOrdenados = [...dataProd].sort((a, b) => {
+            return new Date(parseIniflexDate(a.data_hora_fim || a.data_registro)) - 
+                new Date(parseIniflexDate(b.data_hora_fim || b.data_registro));
+        });
+
+        let ultimaOP = null;
+
+        datosOrdenados.forEach((item, index) => {
+            const opActual = item.op;
+
+            // 2. Si la OP cambia, significa que el item ANTERIOR fue el último de la OP vieja
+            if (ultimaOP !== null && opActual !== ultimaOP) {
+                const itemAnterior = datosOrdenados[index - 1];
+                
+                console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
+                console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
+                console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
+                console.warn("----------------------------------");
+                
+                // Aquí marcaremos visualmente el itemAnterior más adelante
+            }
+
+            ultimaOP = opActual;
+        });
 
         // 1. Producción
         dataProd.forEach(item => {
@@ -839,10 +867,9 @@ function renderDashboard(filterSector) {
 
             const esElba4 = (machine.id == 509); //ESTA VARIABLE ES PARA CORREGIR ELBA 4 (ID 509) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
             const esHecce2 = (machine.id == 505); //ESTA VARIABLE ES PARA CORREGIR HECCE 2 (ID 505) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
-            const esMobert = (machine.id == 511);
 
             if (data.quantities) { ////////// ESTO DEBE SER ELIMINADO CUANDO SE HAGA LA CORRECCIÓN DE UNIDADES //////////
-                if (esElba4 || esHecce2 || esMobert) { 
+                if (esElba4 || esHecce2) { 
                     // Debemos iterar sobre las claves del objeto y dividir sus valores
                     Object.keys(data.quantities).forEach(key => {
                         data.quantities[key] = data.quantities[key] / 2;
@@ -899,7 +926,7 @@ function renderDashboard(filterSector) {
             // =========================================================================
             // CORRECCIÓN ESPECÍFICA PARA ELBA 4 (ID 509) Y HECCE 2 (ID 505)
             // =========================================================================
-            if (esElba4 || esHecce2 || esMobert) {
+            if (esElba4 || esHecce2) {
                 volManana = volManana / 2;
                 volTarde = volTarde / 2;
                 volNoche = volNoche / 2;
