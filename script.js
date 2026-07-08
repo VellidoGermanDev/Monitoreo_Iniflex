@@ -4,7 +4,7 @@ const API_KEY = "-7$-20$111$60$91$-89$81$-72$34$9$39$-20$-22$-64$24$-24$-83$-32$
 
 // Mapeo de Sectores y Máquinas
 const sectorsConfig = [
-    { id: 1, name: "Extrusión", machines: Array.from({ length: 16 }, (_, i) => ({ id: 101 + i, name: `EXTRUSURA ${i + 1}` })) },
+    { id: 1, name: "Extrusión", machines: Array.from({ length: 16 }, (_, i) => ({ id: 101 + i, name: `EXTRUSORA ${i + 1}` })) },
     { id: 2, name: "Impresión", machines: [{ id: 201, name: "TACHYS" }, { id: 202, name: "CHRONOS" }, { id: 203, name: "SIRIO" }, { id: 204, name: "VENUS 4" }] },
     { id: 3, name: "Laminado", machines: [{ id: 301, name: "SCHIAVI" }, { id: 302, name: "SUPER SIMPLEX" }] },
     { id: 4, name: "Refile", machines: [{ id: 401, name: "REFILADORA 1" }, { id: 402, name: "REFILADORA 2" }, { id: 403, name: "REFILADORA 3" }, { id: 404, name: "REFILADORA 4" }] },
@@ -126,6 +126,9 @@ document.addEventListener("DOMContentLoaded", async () => { // <-- Agregamos asy
     
     // Al presionar el botón "Actualizar" a mano, marcamos que el panel ya inició el ciclo
     document.getElementById("btn-refresh").addEventListener("click", () => {
+        
+        console.clear(); //LIMPIEZA DE CONSOLA
+
         sessionStorage.setItem("panel_iniciado", "true");
         fetchDashboardData();
     });
@@ -396,10 +399,10 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             if (ultimaOP !== null && opActual !== ultimaOP) {
                 const itemAnterior = datosOrdenados[index - 1];
                 
-                console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
-                console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
-                console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
-                console.warn("----------------------------------");
+                //console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
+                //console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
+                //console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
+                //console.warn("----------------------------------");
                 
                 // Aquí marcaremos visualmente el itemAnterior más adelante
             }
@@ -417,7 +420,7 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
 
             if (Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
                 item.ap_lote.forEach(lote => {
-                    if (lote.peso < 2 || lote.peso > 650) {
+                    if (lote.peso < 1.1 || lote.peso > 650) {
                         esFallaProd = true;
                         console.warn("ALERTA PROD (LOTE): Máq " + item.recurso + " | OP " + item.op + " | Peso " + lote.peso + "kg | Hora " + horaRegistro);
                     }
@@ -441,7 +444,7 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
 
             if (Array.isArray(item.ap_lote) && item.ap_lote.length > 0) {
                 item.ap_lote.forEach(lote => {
-                    if (lote.peso > 200) {
+                    if (lote.peso > 300) {
                         esFallaScrap = true;
                         console.warn("ALERTA SCRAP (LOTE): Máq " + item.recurso + " | OP " + item.op + " | Peso " + lote.peso + "kg | Hora " + horaRegistro);
                     }
@@ -866,10 +869,10 @@ function renderDashboard(filterSector) {
             }
 
             const esElba4 = (machine.id == 509); //ESTA VARIABLE ES PARA CORREGIR ELBA 4 (ID 509) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
-            const esHecce2 = (machine.id == 505); //ESTA VARIABLE ES PARA CORREGIR HECCE 2 (ID 505) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
+            //const esHecce2 = (machine.id == 505); //ESTA VARIABLE ES PARA CORREGIR HECCE 2 (ID 505) Y SU VOLUMEN DEBE DIVIDIRSE ENTRE 2
 
             if (data.quantities) { ////////// ESTO DEBE SER ELIMINADO CUANDO SE HAGA LA CORRECCIÓN DE UNIDADES //////////
-                if (esElba4 || esHecce2) { 
+                if (esElba4 /* || esHecce2*/) { 
                     // Debemos iterar sobre las claves del objeto y dividir sus valores
                     Object.keys(data.quantities).forEach(key => {
                         data.quantities[key] = data.quantities[key] / 2;
@@ -926,7 +929,7 @@ function renderDashboard(filterSector) {
             // =========================================================================
             // CORRECCIÓN ESPECÍFICA PARA ELBA 4 (ID 509) Y HECCE 2 (ID 505)
             // =========================================================================
-            if (esElba4 || esHecce2) {
+            if (esElba4 /* || esHecce2 */) {
                 volManana = volManana / 2;
                 volTarde = volTarde / 2;
                 volNoche = volNoche / 2;
