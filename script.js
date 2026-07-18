@@ -286,18 +286,23 @@ async function fetchDashboardData() {
 }
 
 function parseIniflexDate(dateStr) {
-    // Supone formato "DD/MM/YYYY HH:mm:ss" o "YYYY-MM-DD HH:mm:ss"
-    // Forzamos el parseo posicional para evitar que el motor de JS aplique desfases UTC
+    // 1. Validaciones de seguridad (Esto evita que el script se rompa)
+    if (typeof dateStr !== 'string' || dateStr.trim() === "") {
+        //console.warn("Fecha inválida recibida:", dateStr);
+        return 0; // O Date.now() si prefieres una fecha por defecto
+    }
+
+    // 2. Tu lógica original (que es correcta y eficiente)
     const partes = dateStr.split(/[\s/:\-]+/);
     if (partes.length >= 5) {
-        // Si viene en formato DD/MM/YYYY
         if (partes[0].length === 2) {
             return new Date(partes[2], partes[1] - 1, partes[0], partes[3], partes[4], partes[5] || 0).getTime();
         }
-        // Si viene en formato YYYY-MM-DD
         return new Date(partes[0], partes[1] - 1, partes[2], partes[3], partes[4], partes[5] || 0).getTime();
     }
-    return Date.parse(dateStr);
+    
+    // 3. Fallback final
+    return Date.parse(dateStr) || 0;
 }
 
 async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
@@ -391,7 +396,6 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
         });
 
         let ultimaOP = null;
-
         datosOrdenados.forEach((item, index) => {
             const opActual = item.op;
 
@@ -399,14 +403,13 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             if (ultimaOP !== null && opActual !== ultimaOP) {
                 const itemAnterior = datosOrdenados[index - 1];
                 
-                //console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
-                //console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
-                //console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
-                //console.warn("----------------------------------");
+                console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
+                console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
+                console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
+                console.warn("----------------------------------");
                 
                 // Aquí marcaremos visualmente el itemAnterior más adelante
             }
-
             ultimaOP = opActual;
         });
 
