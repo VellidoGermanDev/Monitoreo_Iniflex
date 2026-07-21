@@ -387,28 +387,43 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             return (ahora - fechaRegistro) < VENTANA_GRACIA_MS;
         }
 
-        //////////////////////////////////////////////////////
-        //LOGICA DE PRUEBA PARA TOMAR LOS CAMBIOS DE TRABAJO//
-        //////////////////////////////////////////////////////
+        // -----------------------------------------------------------------
+        // DETECCIÓN DE CAMBIOS DE TRABAJO (Lógica validada)
+        // -----------------------------------------------------------------
         const datosOrdenados = [...dataProd].sort((a, b) => {
             return new Date(parseIniflexDate(a.data_hora_fim || a.data_registro)) - 
-                new Date(parseIniflexDate(b.data_hora_fim || b.data_registro));
+                   new Date(parseIniflexDate(b.data_hora_fim || b.data_registro));
         });
 
         let ultimaOP = null;
+        let misPuntosDeCambio = [];
+
         datosOrdenados.forEach((item, index) => {
             const opActual = item.op;
 
-            // 2. Si la OP cambia, significa que el item ANTERIOR fue el último de la OP vieja
             if (ultimaOP !== null && opActual !== ultimaOP) {
                 const itemAnterior = datosOrdenados[index - 1];
-                
-                console.warn("--- DETECTADO CAMBIO DE TRABAJO ---");
-                console.warn("OP Saliente: " + ultimaOP + " | Terminó a las: " + (itemAnterior.data_hora_fim || itemAnterior.data_registro));
-                console.warn("OP Entrante: " + opActual + " | Empezó a las: " + (item.data_hora_fim || item.data_registro));
-                console.warn("----------------------------------");
-                
-                // Aquí marcaremos visualmente el itemAnterior más adelante
+                const fechaCambioStr = itemAnterior.data_hora_fim || itemAnterior.data_registro;
+                const timestampCambio = parseIniflexDate(fechaCambioStr);
+
+                // Verificamos que el cambio esté dentro del rango estricto del turno
+                if (timestampCambio >= estrictoInicio && timestampCambio <= estrictoFin) {
+                    const dtCambio = new Date(timestampCambio);
+                    const horaCambio = dtCambio.getHours();
+                    let indexCasillero = horaCambio - 6;
+                    if (indexCasillero < 0) indexCasillero += 24;
+
+                    // Mapeamos la hora exacta al eje X de las etiquetas globales
+                    const etiquetaX = indexCasillero >= 0 && indexCasillero < globalLabels.length 
+                        ? globalLabels[indexCasillero] 
+                        : "06:00";
+
+                    misPuntosDeCambio.push({
+                        x: etiquetaX,
+                        y: 500, // Altura de referencia fija para el triángulo en el gráfico
+                        opInfo: `Cambio de OP: ${ultimaOP} ➔ ${opActual}`
+                    });
+                }
             }
             ultimaOP = opActual;
         });
@@ -576,7 +591,8 @@ async function fetchMachineData(recursoId, fechaBaseObj, dataFimStr) {
             ops: listaOPs.size > 0 ? Array.from(listaOPs).join(", ") : "Sin datos",
             hourlyHistory: machineHourlyHistory,
             hourlyVolumeByUnit: machineHourlyVolumeByUnit,
-            hourlyScrapHistory: machineHourlyScrapHistory // <-- ENVIAMOS EL HISTORIAL REAL
+            hourlyScrapHistory: machineHourlyScrapHistory, // <-- ENVIAMOS EL HISTORIAL REAL
+            puntosCambio: misPuntosDeCambio
         };
 
     } catch (error) {
@@ -1063,39 +1079,63 @@ function initIndividualCharts(filterSector) {
             if (!canvas) return;
 
             const ctx = canvas.getContext('2d');
-            const data = currentData[machine.id] || { hourlyHistory: Array(24).fill(0) };
+            const data = currentData[machine.id] || { 
+                hourlyHistory: Array(24).fill(0), 
+                puntosCambio: [] 
+            };
             
-            // Extendemos el historial copiando el último casillero para el cierre visual exacto
+            // Extendemos el historial para el cierre visual exacto
             const machineDataExtended = [...data.hourlyHistory, data.hourlyHistory[23]];
+
+            // Si ya existía un gráfico previo, lo destruimos
+            if (individualChartsInstances[machine.id]) {
+                individualChartsInstances[machine.id].destroy();
+            }
 
             individualChartsInstances[machine.id] = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: globalLabels,
-                    datasets: [{
-                        label: 'Prod (kg/h)',
-                        data: machineDataExtended,
-                        borderColor: '#00f2fe',
-                        backgroundColor: 'rgba(0, 242, 254, 0.02)', // Relleno mínimo bajo la línea
-                        borderWidth: 2,
-                        tension: 0.35,
-                        pointBackgroundColor: '#00f2fe',
-                        pointRadius: 1.5,
-                        pointHoverRadius: 5,
-                        fill: true
-                    }]
+                    datasets: [
+                        {
+                            label: 'Prod (kg/h)',
+                            data: machineDataExtended,
+                            borderColor: '#00f2fe',
+                            backgroundColor: 'rgba(0, 242, 254, 0.02)',
+                            borderWidth: 2,
+                            tension: 0.35,
+                            pointBackgroundColor: '#00f2fe',
+                            pointRadius: 1.5,
+                            pointHoverRadius: 5,
+                            fill: true
+                        },
+                        {
+                            label: 'Cambio de Trabajo',
+                            data: data.puntosCambio || [], // <--- Puntos dinámicos detectados
+                            pointStyle: 'triangle',
+                            pointRadius: 8,
+                            pointBackgroundColor: '#f59e0b', // Naranja industrial
+                            pointBorderColor: '#000',
+                            showLine: false,
+                            order: 0
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false }, // Ocultamos leyendas para maximizar espacio
+                        legend: { display: false },
                         tooltip: {
                             backgroundColor: '#111',
                             titleColor: '#00f2fe',
                             bodyColor: '#fff',
                             callbacks: {
                                 label: function(context) {
+                                    // Si pasamos el mouse por encima del triángulo de cambio
+                                    if (context.dataset.label === 'Cambio de Trabajo') {
+                                        return context.raw.opInfo;
+                                    }
                                     let index = context.dataIndex > 23 ? 23 : context.dataIndex;
                                     let turnoInfo = index < 8 ? " (T. Mañana)" : (index < 16 ? " (T. Tarde)" : " (T. Noche)");
                                     return ` ${context.parsed.y.toLocaleString('es-AR', {maximumFractionDigits: 1})} kg${turnoInfo}`;
@@ -1119,7 +1159,7 @@ function initIndividualCharts(filterSector) {
                         }
                     }
                 },
-                plugins: [shiftsBackgroundPlugin] // <--- Inyectamos también acá el fondo matemático por turnos
+                plugins: [shiftsBackgroundPlugin]
             });
         });
     });
